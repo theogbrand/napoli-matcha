@@ -1,44 +1,58 @@
-// Takes as input CLI request, repo as input, number of sandboxes 
-
 import { Daytona } from "@daytonaio/sdk";
 import dotenv from "dotenv";
-dotenv.config(); // looks for .env in process.cwd()
+import matter from "gray-matter";
+import { readdir, readFile, writeFile } from "fs/promises";
+import { join } from "path";
+
+dotenv.config();
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
+const queueDir = join(import.meta.dirname, "..", "request_queue");
 
-try {
-    const sandbox = await daytona.create({
-        language: 'typescript',
-    });
-
-    // Define the Claude Code command to be executed
-    const claudeCommand =
-    "claude --dangerously-skip-permissions -p 'write a dad joke about penguins' --output-format stream-json --verbose";
-
-    // Install Claude Code in the sandbox
+async function runInSandbox(prompt: string, label: string) {
+  const sandbox = await daytona.create({ language: "typescript" });
+  console.log(`[${label}] Sandbox created`);
+  try {
     await sandbox.process.executeCommand("npm install -g @anthropic-ai/claude-code");
-
-    const ptyHandle = await sandbox.process.createPty({
-        id: "claude",
-        onData: (data) => {
-            process.stdout.write(data);
-        },
-    });
-
-    await ptyHandle.waitForConnection();
-
-    // Run the Claude Code command inside the sandbox
-    ptyHandle.sendInput(
-    `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY} ${claudeCommand}\n`
-    );
-
-    // Use this to close the terminal session if no more commands will be executed
-    ptyHandle.sendInput("exit\n")
-
-    await ptyHandle.wait();
-
-    // If you are done and have closed the PTY terminal, it is recommended to clean up resources by deleting the sandbox
+    const escaped = prompt.replace(/'/g, "'\\''");
+    const cmd = `claude -p '${escaped}' --dangerously-skip-permissions --output-format=stream-json --model claude-haiku-4-5-20251001 --verbose`;
+    const env = { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! };
+    const response = await sandbox.process.executeCommand(cmd, undefined, env);
+    const lines = response.result.split("\n").filter(Boolean);
+    for (const line of lines) {
+      try {
+        const event = JSON.parse(line);
+        if (event.type === "assistant" && event.message?.content) {
+          for (const block of event.message.content) {
+            if (block.type === "text") console.log(`[${label}] ${block.text}`);
+          }
+        } else if (event.type === "result") {
+          console.log(`[${label}] Result: ${event.result}`);
+        }
+      } catch {}
+    }
+  } finally {
     await sandbox.delete();
-} catch (error) {
-    console.error("Failed to run Claude Code in Daytona sandbox:", error);
+    console.log(`[${label}] Deleted`);
+  }
+}
+
+const files = (await readdir(queueDir)).filter((f) => f.endsWith(".md"));
+
+for (const file of files) {
+  const filePath = join(queueDir, file);
+  const raw = await readFile(filePath, "utf-8");
+  const { data } = matter(raw);
+  if (data.status !== "Backlog") continue;
+
+  console.log(`Processing: ${data.title}`);
+  await writeFile(filePath, matter.stringify("", { ...data, status: "In Progress" }));
+
+  const tasks = Array.from({ length: data.number_of_sandboxes }, (_, i) =>
+    runInSandbox(data.description, `${data.title}-${i + 1}`)
+  );
+  await Promise.all(tasks);
+
+  await writeFile(filePath, matter.stringify("", { ...data, status: "Done" }));
+  console.log(`Completed: ${data.title}`);
 }
