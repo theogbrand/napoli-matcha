@@ -1,10 +1,19 @@
 # Proposed Arch
 
 ## UIUX:
-### Stage 1:
-run CLI with request and repo:
+### Stage 0:
+- Edit request_queue/joke_test.md with status 'Backlog' and run:
+    - To add ENUM for status later
+
 ```bash
-python run.py https://github.com/scikit-learn/scikit-learn \
+npm install
+npx tsx src/index.ts 
+```
+
+### Stage 1:
+run CLI with request and repo (SOON):
+```bash
+npx tsx src/index.ts https://github.com/scikit-learn/scikit-learn \
   -p "Investigate TODO comments across this repository. Spawn sub-agents to explore different modules. Find the easiest TODO and fix it."
 ```
 
