@@ -1,4 +1,5 @@
 ---
+id: AGI-2
 title: pr creation test
 description: >-
   write ONE short dad joke about AI Agents, use puns that anyone will quickly

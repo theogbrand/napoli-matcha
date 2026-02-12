@@ -1,9 +1,10 @@
 import { Daytona, Sandbox } from "@daytonaio/sdk";
 import matter from "gray-matter";
-import { readdir, readFile, writeFile } from "fs/promises";
+import { appendFile, mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 
 interface TaskRequest {
+  id: string;
   file: string;
   filePath: string;
   title: string;
@@ -16,6 +17,7 @@ interface TaskRequest {
 export class SandboxQueueProcessor {
   private daytona: Daytona;
   private queueDir: string;
+  private logsDir: string;
   private config: {
     anthropicApiKey: string;
     githubToken: string;
@@ -24,7 +26,9 @@ export class SandboxQueueProcessor {
 
   constructor(daytonaApiKey: string) {
     this.daytona = new Daytona({ apiKey: daytonaApiKey });
-    this.queueDir = join(import.meta.dirname, "..", "..", "request_queue");
+    const root = join(import.meta.dirname, "..", "..");
+    this.queueDir = join(root, "request_queue");
+    this.logsDir = join(root, "logs");
     this.config = {
       anthropicApiKey: process.env.ANTHROPIC_API_KEY!,
       githubToken: process.env.GITHUB_TOKEN!,
@@ -41,12 +45,7 @@ export class SandboxQueueProcessor {
 
       const sandboxTasks = Array.from(
         { length: task.numberOfSandboxes },
-        (_, i) =>
-          this.runInSandbox(
-            task.description,
-            `${task.title}-${i + 1}`,
-            task.repo
-          )
+        (_, i) => this.runInSandbox(task, i + 1)
       );
       await Promise.all(sandboxTasks);
 
@@ -59,38 +58,45 @@ export class SandboxQueueProcessor {
     const files = (await readdir(this.queueDir)).filter((f) =>
       f.endsWith(".md")
     );
-    const tasks: TaskRequest[] = [];
 
+    // Scan all queue files to find the highest existing AGI-{n} ID
+    let maxId = 0;
+    const allData: { file: string; filePath: string; data: Record<string, unknown>; raw: string }[] = [];
     for (const file of files) {
-      const task = await this.parseTaskFile(file, join(this.queueDir, file));
-      if (task) {
-        tasks.push(task);
+      const filePath = join(this.queueDir, file);
+      const raw = await readFile(filePath, "utf-8");
+      const { data } = matter(raw);
+      allData.push({ file, filePath, data, raw });
+      if (typeof data.id === "string") {
+        const match = data.id.match(/^AGI-(\d+)$/);
+        if (match) maxId = Math.max(maxId, parseInt(match[1], 10));
+      }
+    }
+
+    // Assign IDs to Backlog tasks missing one, and collect runnable tasks
+    const tasks: TaskRequest[] = [];
+    for (const { file, filePath, data } of allData) {
+      if (data.status === "Backlog" && !data.id) {
+        maxId++;
+        data.id = `AGI-${maxId}`;
+        await writeFile(filePath, matter.stringify("", data));
+        console.log(`Assigned ${data.id} to ${file}`);
+      }
+      if (data.status === "Backlog") {
+        tasks.push({
+          id: data.id as string,
+          file,
+          filePath,
+          title: data.title as string,
+          description: data.description as string,
+          repo: data.repo as string,
+          numberOfSandboxes: data.number_of_sandboxes as number,
+          status: data.status as string,
+        });
       }
     }
 
     return tasks;
-  }
-
-  private async parseTaskFile(
-    file: string,
-    filePath: string
-  ): Promise<TaskRequest | null> {
-    const raw = await readFile(filePath, "utf-8");
-    const { data } = matter(raw);
-
-    if (data.status !== "Backlog") {
-      return null;
-    }
-
-    return {
-      file,
-      filePath,
-      title: data.title,
-      description: data.description,
-      repo: data.repo,
-      numberOfSandboxes: data.number_of_sandboxes,
-      status: data.status,
-    };
   }
 
   private async updateTaskStatus(
@@ -106,21 +112,38 @@ export class SandboxQueueProcessor {
   }
 
   private async runInSandbox(
-    prompt: string,
-    label: string,
-    repo: string
+    task: TaskRequest,
+    sandboxIndex: number
   ): Promise<void> {
+    const label = `${task.title}-${sandboxIndex}`;
+    const logDir = join(this.logsDir, task.id);
+    const logFile = join(logDir, `agent-${sandboxIndex}.log`);
+
+    await mkdir(logDir, { recursive: true });
+    const header = [
+      "=== Agent Log ===",
+      `Ticket: ${task.id}`,
+      `Title: ${task.title}`,
+      `Queue File: request_queue/${task.file}`,
+      `Sandbox: agent-${sandboxIndex}`,
+      `Started: ${new Date().toISOString()}`,
+      "===\n\n",
+    ].join("\n");
+    await writeFile(logFile, header);
+
     const sandbox = await this.daytona.create({ language: "typescript" });
     console.log(`[${label}] Sandbox created`);
 
     try {
-      const repoDir = await this.setupSandboxEnvironment(sandbox, repo, label);
+      const repoDir = await this.setupSandboxEnvironment(sandbox, task.repo, label);
       await this.installClaudeCLI(sandbox, label);
       await this.installGitHubCLI(sandbox, label);
       await this.configureGit(sandbox, label);
-      await this.executeClaudeCommand(sandbox, prompt, repoDir, label);
+      await this.executeClaudeCommand(sandbox, task, repoDir, label, logFile);
     } finally {
       await sandbox.delete();
+      const footer = `\n=== Finished: ${new Date().toISOString()} ===\n`;
+      await appendFile(logFile, footer);
       console.log(`[${label}] Deleted`);
     }
   }
@@ -195,17 +218,20 @@ export class SandboxQueueProcessor {
 
   private async executeClaudeCommand(
     sandbox: Sandbox,
-    prompt: string,
+    task: TaskRequest,
     repoDir: string,
-    label: string
+    label: string,
+    logFile: string
   ): Promise<void> {
+    const branchName = `feat/${task.id}`;
+    const prTitle = `${task.id}: ${task.title}`;
     const fullPrompt = `You are working in a cloned git repo. Your task:
 
-1. Create a new branch with a descriptive name for this feature
-2. Implement the following feature: ${prompt}
+1. Create a new branch named "${branchName}"
+2. Implement the following feature: ${task.description}
 3. Commit your changes with a clear commit message
 4. Push the branch to origin
-5. Create a pull request using \`gh pr create\` with a clear title and description
+5. Create a pull request using \`gh pr create\` with title "${prTitle}" and a clear description
 
 IMPORTANT: Use \`gh\` CLI for creating the PR (GITHUB_TOKEN is already set in the environment). Do NOT use interactive flags.`;
 
@@ -234,7 +260,7 @@ IMPORTANT: Use \`gh\` CLI for creating the PR (GITHUB_TOKEN is already set in th
         buffer = lines.pop()!;
 
         for (const line of lines) {
-          this.handleStreamLine(line, label);
+          this.handleStreamLine(line, label, logFile);
         }
       },
     });
@@ -247,18 +273,26 @@ IMPORTANT: Use \`gh\` CLI for creating the PR (GITHUB_TOKEN is already set in th
 
     // Flush remaining buffer
     if (buffer.trim()) {
-      this.handleStreamLine(buffer, label);
+      this.handleStreamLine(buffer, label, logFile);
     }
 
     console.log(`[${label}] PTY exited with code: ${result.exitCode}`);
+    await appendFile(logFile, `\nPTY exited with code: ${result.exitCode}\n`);
   }
 
-  private handleStreamLine(line: string, label: string): void {
+  private handleStreamLine(line: string, label: string, logFile: string): void {
     const stripped = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").trim();
-    if (!stripped || !stripped.startsWith("{")) return;
+    if (!stripped) return;
+
+    if (!stripped.startsWith("{")) {
+      appendFile(logFile, `[raw] ${stripped}\n`);
+      return;
+    }
 
     try {
       const event = JSON.parse(stripped);
+      console.log(`[${label}:json] ${JSON.stringify(event)}`);
+      appendFile(logFile, `[json] ${JSON.stringify(event)}\n`);
 
       if (event.type === "assistant" && event.message?.content) {
         for (const block of event.message.content) {
@@ -270,7 +304,7 @@ IMPORTANT: Use \`gh\` CLI for creating the PR (GITHUB_TOKEN is already set in th
         console.log(`\n[${label}:result] ${event.result}`);
       }
     } catch {
-      // Partial or malformed JSON — skip
+      appendFile(logFile, `[raw] ${stripped}\n`);
     }
   }
 }

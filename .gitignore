@@ -15,3 +15,5 @@ dist/
 .entire
 # Horizon runtime data
 .horizon/
+# Agent log files
+logs/
