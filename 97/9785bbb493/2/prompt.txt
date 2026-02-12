@@ -1,0 +1,14 @@
+is the @tsconfig.json functional and necessary here without confusing the AI Agent when developing this applicaiton?
+
+---
+
+<bash-input>commit all current changes</bash-input>
+
+---
+
+<bash-stdout></bash-stdout><bash-stderr>(eval):1: command not found: commit
+</bash-stderr>
+
+---
+
+commit all current changes

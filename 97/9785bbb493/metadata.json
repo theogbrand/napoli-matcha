@@ -3,7 +3,7 @@
   "checkpoint_id": "979785bbb493",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 5,
+  "checkpoints_count": 6,
   "files_touched": [
     "package.json",
     "request_queue/pr_creation_test.md",
@@ -13,6 +13,7 @@
     "tests/pr_creation.test.ts",
     "tests/pr_creation_test.mts",
     "tests/pr_creation_test.ts",
+    "tsconfig.json",
     "vitest.config.ts"
   ],
   "sessions": [
@@ -29,13 +30,20 @@
       "context": "/97/9785bbb493/1/context.md",
       "content_hash": "/97/9785bbb493/1/content_hash.txt",
       "prompt": "/97/9785bbb493/1/prompt.txt"
+    },
+    {
+      "metadata": "/97/9785bbb493/2/metadata.json",
+      "transcript": "/97/9785bbb493/2/full.jsonl",
+      "context": "/97/9785bbb493/2/context.md",
+      "content_hash": "/97/9785bbb493/2/content_hash.txt",
+      "prompt": "/97/9785bbb493/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1253,
-    "cache_creation_tokens": 42428,
-    "cache_read_tokens": 914226,
-    "output_tokens": 3339,
-    "api_call_count": 32
+    "input_tokens": 1313,
+    "cache_creation_tokens": 53818,
+    "cache_read_tokens": 1084497,
+    "output_tokens": 5187,
+    "api_call_count": 39
   }
 }
