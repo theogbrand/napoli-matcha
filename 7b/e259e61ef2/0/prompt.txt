@@ -1,0 +1,83 @@
+Implement the following plan:
+
+# Plan: Fix PTY Log Streaming - JSON Parsing & Log Files
+
+## Context
+The PTY streamed logs from Claude Code are messy and untraceable. We need to:
+1. Properly parse and `console.log` each JSON line from Claude's `stream-json` output (temporary debug logging)
+2. Write all output to persistent `agent-{n}.log` files organized by ticket ID, linked back to the request queue MD file
+
+## Files to Modify
+- `src/lib/SandboxQueueProcessor.ts` — main changes (interface, ID assignment, log writing, JSON formatting)
+
+## Implementation
+
+### Step 1: Add `id` field to `TaskRequest` interface and auto-assign IDs
+- Add `id: string` to the `TaskRequest` interface
+- In `loadTasksFromQueue()`, after parsing all task files:
+  - Scan all queue files (including non-Backlog) for existing `id` fields to find the highest `AGI-{n}` number
+  - For Backlog tasks missing an `id`, assign the next `AGI-{n}` and write it back to the frontmatter
+- In `parseTaskFile()`, read the `id` field from frontmatter (may be undefined for unassigned tasks)
+
+### Step 2: Refactor `runInSandbox()` to accept `TaskRequest` + sandbox index
+- Change signature from `(prompt, label, repo)` to `(task: TaskRequest, sandboxIndex: number)`
+- Derive `label` internally as `${task.title}-${sandboxIndex}`
+- Update `processQueue()` call site accordingly
+
+### Step 3: Create log directory and file per sandbox run
+- At the start of `runInSandbox()`:
+  - Create `logs/AGI-{id}/` directory (using `mkdir -p` via `fs/promises`)
+  - Open a write stream or file handle for `logs/AGI-{id}/agent-{sandboxIndex}.log`
+  - Write a header block:
+    ```
+    === Agent Log ===
+    Ticket: AGI-{id}
+    Title: {task.title}
+    Queue File: request_queue/{task.file}
+    Sandbox: agent-{sandboxIndex}
+    Started: {ISO timestamp}
+    ===
+    ```
+- Pass the log file path/handle through to `executeClaudeCommand()`
+- After execution completes, append a footer with exit code and timestamp
+
+### Step 4: Enhance `handleStreamLine()` to format and log JSON lines
+- Add a `logLines: string[]` array parameter (accumulated lines to batch-write)
+- For each line:
+  1. Strip ANSI codes (existing logic)
+  2. If valid JSON, parse it and `console.log` the formatted JSON line: `console.log(`[${label}:json] ${JSON.stringify(event)}`)`
+  3. Append the formatted JSON line to `logLines` array
+  4. Keep existing assistant/result extraction for human-readable console output
+- Non-JSON lines (shell output, etc.) also get logged to the file with a `[raw]` prefix
+
+### Step 5: Write accumulated log lines to file
+- In `executeClaudeCommand()`, after PTY completes:
+  - Write all accumulated `logLines` to the log file using `writeFile` (or append incrementally)
+- Simpler alternative: use `appendFile` in each `handleStreamLine` call (more I/O but simpler code, and we're not performance-sensitive here)
+
+**Decision: Use `appendFile` for simplicity** — write each line to the log file as it arrives. This also gives us crash-resilient logging (partial logs are preserved if the process crashes).
+
+### Step 6: Update `processQueue()` to pass `TaskRequest` object
+- Change the `sandboxTasks` mapping from:
+  ```ts
+  this.runInSandbox(task.description, `${task.title}-${i + 1}`, task.repo)
+  ```
+  to:
+  ```ts
+  this.runInSandbox(task, i + 1)
+  ```
+
+## Verification
+1. Add a test queue file with `status: Backlog` and no `id` field — verify it gets auto-assigned `AGI-{n}`
+2. Run the processor — verify:
+   - `console.log` shows formatted JSON lines with `[label:json]` prefix
+   - `logs/AGI-{id}/agent-{n}.log` is created with header + JSON lines
+   - Log file header contains correct ticket metadata and queue file path
+3. Verify existing assistant/result console output still works
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/ob1/.REDACTED.jsonl
+
+---
+
+Referring to the update in @CLAUDE.md , create tests to confidently test this new feature with agent logs.
