@@ -1,0 +1,439 @@
+Implement the following plan:
+
+# Refactor src/index.ts to Object-Oriented Class Structure
+
+## Context
+
+The current `src/index.ts` contains 111 lines of procedural code with:
+- One `runInSandbox()` function handling all sandbox operations
+- Top-level imperative code for the main processing loop
+- **Known flakiness issue** (from commit "works but flaky - need to stream STOUT logs"): JSON parsing fails on non-JSON output lines
+
+This refactoring will improve code organization, readability, and maintainability while fixing the streaming output parsing issue. The goal is to create production-ready code with a clear class structure and a named main loop function.
+
+## Approach: Single Class with Organized Methods
+
+Create a single `SandboxQueueProcessor` class that encapsulates all functionality with well-organized private methods. This balances simplicity with maintainability.
+
+### Class Structure
+
+```typescript
+class SandboxQueueProcessor {
+  private daytona: Daytona;
+  private queueDir: string;
+  private config: { anthropicApiKey: string; githubToken: string; claudeModel: string };
+
+  constructor(daytonaApiKey: string);
+
+  // Public API
+  async processQueue(): Promise<void>;
+
+  // Private methods - Queue Management
+  private async loadTasksFromQueue(): Promise<TaskRequest[]>;
+  private async parseTaskFile(file: string, filePath: string): Promise<TaskRequest | null>;
+  private async updateTaskStatus(task: TaskRequest, status: string): Promise<void>;
+
+  // Private methods - Sandbox Execution
+  private async runInSandbox(prompt: string, label: string, repo: string): Promise<void>;
+  private async setupSandboxEnvironment(sandbox: Sandbox, repo: string, label: string): Promise<string>;
+  private async installClaudeCLI(sandbox: Sandbox, label: string): Promise<void>;
+  private async installGitHubCLI(sandbox: Sandbox, label: string): Promise<void>;
+  private async configureGit(sandbox: Sandbox, label: string): Promise<void>;
+  private async executeClaudeCommand(sandbox: Sandbox, prompt: string, repoDir: string, label: string): Promise<void>;
+
+  // Private methods - Output Parsing (fixes flakiness)
+  private parseStreamingOutput(output: string, label: string): void;
+  private parseLine(line: string): any | null;
+}
+
+interface TaskRequest {
+  file: string;
+  filePath: string;
+  title: string;
+  description: string;
+  repo: string;
+  numberOfSandboxes: number;
+  status: string;
+}
+```
+
+### Key Improvements
+
+1. **Named main loop**: `processQueue()` replaces the top-level imperative code
+2. **Organized methods**: Each private method has a single, clear responsibility
+3. **Fixes flakiness**: `parseStreamingOutput()` and `parseLine()` properly handle non-JSON output
+4. **Better error handling**: Try-catch blocks with proper cleanup in finally
+5. **Configuration centralized**: All env vars and config in constructor
+6. **Simple and maintainable**: ~180 lines, one file, easy to understand
+
+### JSON Parsing Fix
+
+Current problem (lines 71-85 in src/index.ts):
+```typescript
+for (const line of lines) {
+  try {
+    const event = JSON.parse(line);  // Fails on non-JSON lines!
+    // ...
+  } catch (error) {
+    console.log(`Error parsing line: ${line}`);
+  }
+}
+```
+
+New solution:
+```typescript
+private parseLine(line: string): any | null {
+  const trimmed = line.trim();
+  if (!trimmed || !trimmed.startsWith('{')) {
+    // Not JSON - just skip it (installation logs, etc.)
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (error) {
+    // Malformed JSON - log but don't crash
+    return null;
+  }
+}
+```
+
+### Main Orchestration (new index.ts)
+
+```typescript
+import { Daytona } from "@daytonaio/sdk";
+import dotenv from "dotenv";
+import { SandboxQueueProcessor } from "./lib/SandboxQueueProcessor.js";
+
+dotenv.config();
+
+async function main() {
+  const processor = new SandboxQueueProcessor(process.env.DAYTONA_API_KEY!);
+  await processor.processQueue();
+}
+
+main().catch(error => {
+  console.error("Fatal error:", error);
+  process.exit(1);
+});
+```
+
+## Implementation Plan
+
+### Step 1: Create the class structure
+1. Create `src/lib/SandboxQueueProcessor.ts`
+2. Define the `TaskRequest` interface
+3. Set up the class with constructor and private fields
+
+### Step 2: Extract queue management methods
+1. Move queue reading logic to `loadTasksFromQueue()`
+2. Move file parsing logic to `parseTaskFile()`
+3. Move status updates to `updateTaskStatus()`
+
+### Step 3: Extract sandbox execution methods
+1. Move existing `runInSandbox()` function into the class
+2. Break it into smaller methods:
+   - `setupSandboxEnvironment()` - clone repo, return repoDir
+   - `installClaudeCLI()` - install Claude CLI
+   - `installGitHubCLI()` - install GitHub CLI
+   - `configureGit()` - configure git user
+   - `executeClaudeCommand()` - run Claude and parse output
+
+### Step 4: Fix streaming output parsing
+1. Extract output parsing to `parseStreamingOutput()`
+2. Implement `parseLine()` with proper JSON detection
+3. Add null checks and error handling
+
+### Step 5: Create public processQueue() method
+1. Implement the main loop as `processQueue()`
+2. Use the private methods for each step
+3. Maintain the same parallel execution pattern with `Promise.all()`
+
+### Step 6: Refactor index.ts
+1. Import the new class
+2. Replace all code with a simple `main()` function
+3. Create the processor instance and call `processQueue()`
+
+## Files to be Modified/Created
+
+### New Files
+- `src/lib/SandboxQueueProcessor.ts` (~180 lines) - Main class with all logic
+
+### Modified Files
+- `src/index.ts` (~15 lines) - Simplified to just instantiate and run
+
+### Dependencies
+All existing dependencies are reused:
+- `@daytonaio/sdk` - Daytona class and Sandbox operations
+- `gray-matter` - YAML frontmatter parsing (`matter()`, `matter.stringify()`)
+- `fs/promises` - File operations (`readdir`, `readFile`, `writeFile`)
+- `path` - Path utilities (`join`)
+- `dotenv` - Environment variable loading
+
+## Verification Plan
+
+### 1. Build the code
+```bash
+npx tsc
+```
+Should compile without errors.
+
+### 2. Test with existing queue
+The existing `request_queue/joke_test.md` can be used to test:
+1. Set status back to "Backlog" in the file
+2. Run the refactored code: `node src/index.js`
+3. Verify:
+   - Task status changes from "Backlog" → "In Progress" → "Done"
+   - Sandbox is created, repo is cloned
+   - Claude CLI and GitHub CLI are installed
+   - Claude command executes
+   - Output is parsed without "Error parsing line" messages (flakiness fix)
+   - Sandbox is cleaned up
+
+### 3. Check for flakiness
+The key improvement is in output parsing. Watch for:
+- ✅ No more "Error parsing line" for non-JSON output
+- ✅ Installation logs are handled gracefully
+- ✅ JSON events are properly parsed and displayed
+
+### 4. Code review
+Verify:
+- Class has clear, single responsibility
+- Methods are well-named and focused
+- Error handling is consistent
+- Cleanup happens in finally blocks
+- Configuration is centralized
+
+### 5. Run existing test suite
+```bash
+npm run test:pr
+```
+This test currently passes before the refactoring. Running it after ensures the refactoring didn't break any existing functionality. The test must pass to confirm the refactoring is successful.
+
+## Benefits of This Approach
+
+1. **Simpler**: Single class (~180 lines total vs 430 for multi-class)
+2. **Readable**: Named methods make flow clear
+3. **Maintainable**: Easy to find and modify specific functionality
+4. **Testable**: Can mock Daytona SDK and test methods
+5. **Production-ready**: Proper error handling, cleanup, configuration management
+6. **Fixes bugs**: Resolves the streaming JSON parsing flakiness
+7. **OOP**: Encapsulation, private methods, clear interface
+
+This strikes the right balance between simplicity and production quality.
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/ob1/.REDACTED.jsonl
+
+---
+
+why did you create a .js variant of the src + lib + test files? is there a point in having is with .ts or is it unwanted redundancy?
+
+---
+
+yes pls put them into a dist dir instead
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Request**: The user provided a detailed implementation plan to refactor `src/index.ts` from procedural code to an OOP class structure (`SandboxQueueProcessor`). The plan included:
+   - Creating a new `src/lib/SandboxQueueProcessor.ts` with a class
+   - Simplifying `src/index.ts` to just a `main()` function
+   - Fixing JSON parsing flakiness by adding `parseLine()` method
+   - Various private methods for queue management and sandbox execution
+
+2. **My Actions - Step 1**: 
+   - Read `src/index.ts` (111 lines of procedural code)
+   - Created `src/lib/` directory
+   - Created `src/lib/SandboxQueueProcessor.ts` with the full class (259 lines)
+   - Refactored `src/index.ts` to ~15 lines with `main()` function
+
+3. **First Error**: `npx tsc` failed with:
+   - `tests/daytona_sandbox.test.ts(22,27): error TS2322: Type 'boolean' is not assignable to type 'void | Promise<void>'`
+   - Fixed by changing arrow function `(data) => process.stdout.write(data)` to block form `(data) => { process.stdout.write(data); }`
+
+4. **Verification**: Ran `npm run test:pr` - passed successfully (89.6s)
+
+5. **User Question**: "why did you create a .js variant of the src + lib + test files? is there a point in having is with .ts or is it unwanted redundancy?"
+   - I explained these were compiled output from `npx tsc`, not intentionally created
+   - Identified the root cause: no `outDir` in `tsconfig.json`, so `.js` files were emitted alongside `.ts` files
+   - `.gitignore` also didn't exclude them
+
+6. **User Request**: "yes pls put them into a dist dir instead"
+   - Added `"outDir": "dist"` to `tsconfig.json`
+   - Added `dist/` to `.gitignore`
+   - Deleted stale `.js` files from `src/`, `src/lib/`, and `tests/`
+   - Verified `tsc` now outputs to `dist/src/` and `dist/tests/`
+   - Ran `npm run test:pr` again - passed (102.5s)
+
+Key files and their final states are important to capture.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to implement a detailed refactoring plan to convert `src/index.ts` from 111 lines of procedural code into an Object-Oriented class structure. The plan specified creating a `SandboxQueueProcessor` class with organized private methods, fixing a known JSON parsing flakiness issue, and simplifying the main entry point. Subsequently, the user noticed unwanted `.js` files generated alongside `.ts` source files and requested compiled output be directed to a `dist/` directory instead.
+
+2. Key Technical Concepts:
+   - TypeScript OOP refactoring (procedural → class-based)
+   - Daytona SDK sandbox management (`@daytonaio/sdk`)
+   - Streaming JSON output parsing (fixing flakiness from non-JSON lines)
+   - Gray-matter YAML frontmatter parsing for task queue files
+   - TypeScript compilation with `outDir` configuration
+   - Vitest test framework
+   - Claude Code CLI execution inside sandboxes
+   - GitHub CLI installation and PR creation in sandboxes
+
+3. Files and Code Sections:
+
+   - **`src/lib/SandboxQueueProcessor.ts`** (NEW - 259 lines)
+     - Core class encapsulating all sandbox queue processing logic
+     - Contains `TaskRequest` interface, constructor with config, and organized private methods
+     - Key fix: `parseLine()` method that checks `trimmed.startsWith("{")` before `JSON.parse()` to avoid flakiness
+     ```typescript
+     import { Daytona, Sandbox } from "@daytonaio/sdk";
+     import matter from "gray-matter";
+     import { readdir, readFile, writeFile } from "fs/promises";
+     import { join } from "path";
+
+     interface TaskRequest {
+       file: string;
+       filePath: string;
+       title: string;
+       description: string;
+       repo: string;
+       numberOfSandboxes: number;
+       status: string;
+     }
+
+     export class SandboxQueueProcessor {
+       private daytona: Daytona;
+       private queueDir: string;
+       private config: {
+         anthropicApiKey: string;
+         githubToken: string;
+         claudeModel: string;
+       };
+
+       constructor(daytonaApiKey: string) {
+         this.daytona = new Daytona({ apiKey: daytonaApiKey });
+         this.queueDir = join(import.meta.dirname, "..", "..", "request_queue");
+         this.config = {
+           anthropicApiKey: process.env.ANTHROPIC_API_KEY!,
+           githubToken: process.env.GITHUB_TOKEN!,
+           claudeModel: "claude-sonnet-4-5-20250929",
+         };
+       }
+
+       async processQueue(): Promise<void> { /* iterates tasks, updates status, runs sandboxes in parallel */ }
+       private async loadTasksFromQueue(): Promise<TaskRequest[]> { /* reads .md files from queueDir */ }
+       private async parseTaskFile(file: string, filePath: string): Promise<TaskRequest | null> { /* parses frontmatter, filters by "Backlog" status */ }
+       private async updateTaskStatus(task: TaskRequest, status: string): Promise<void> { /* rewrites frontmatter with new status */ }
+       private async runInSandbox(prompt: string, label: string, repo: string): Promise<void> { /* orchestrates sandbox lifecycle with try/finally cleanup */ }
+       private async setupSandboxEnvironment(sandbox: Sandbox, repo: string, label: string): Promise<string> { /* clones repo */ }
+       private async installClaudeCLI(sandbox: Sandbox, label: string): Promise<void> { /* npm install -g @anthropic-ai/claude-code */ }
+       private async installGitHubCLI(sandbox: Sandbox, label: string): Promise<void> { /* binary install gh v2.86.0 */ }
+       private async configureGit(sandbox: Sandbox, label: string): Promise<void> { /* git config user */ }
+       private async executeClaudeCommand(sandbox: Sandbox, prompt: string, repoDir: string, label: string): Promise<void> { /* runs claude CLI, calls parseStreamingOutput */ }
+       private parseStreamingOutput(output: string, label: string): void { /* splits lines, calls parseLine, logs events */ }
+       private parseLine(line: string): any | null { /* JSON detection fix - checks startsWith("{") before parsing */ }
+     }
+     ```
+
+   - **`src/index.ts`** (MODIFIED - reduced from 111 to ~15 lines)
+     - Simplified to just instantiate and run the processor
+     ```typescript
+     import dotenv from "dotenv";
+     import { SandboxQueueProcessor } from "./lib/SandboxQueueProcessor.js";
+
+     dotenv.config();
+
+     async function main() {
+       const processor = new SandboxQueueProcessor(process.env.DAYTONA_API_KEY!);
+       await processor.processQueue();
+     }
+
+     main().catch((error) => {
+       console.error("Fatal error:", error);
+       process.exit(1);
+     });
+     ```
+
+   - **`tsconfig.json`** (MODIFIED)
+     - Added `"outDir": "dist"` to redirect compiled output
+     ```json
+     {
+       "compilerOptions": {
+         "target": "ES2022",
+         "module": "nodenext",
+         "moduleResolution": "nodenext",
+         "strict": true,
+         "types": ["node"],
+         "skipLibCheck": true,
+         "outDir": "dist"
+       },
+       "include": ["src/**/*.ts", "tests/**/*.ts", "*.ts"],
+       "exclude": ["node_modules", "dist"]
+     }
+     ```
+
+   - **`.gitignore`** (MODIFIED)
+     - Added `dist/` line after `node_modules/`
+
+   - **`tests/daytona_sandbox.test.ts`** (MODIFIED)
+     - Fixed `onData` callback return type from implicit boolean to void
+     ```typescript
+     // Before (error):
+     onData: (data) => process.stdout.write(data),
+     // After (fixed):
+     onData: (data) => {
+       process.stdout.write(data);
+     },
+     ```
+
+   - **`tests/pr_creation.test.ts`** (READ ONLY - not modified, imports SandboxQueueProcessor)
+
+   - **`package.json`** (READ ONLY)
+     - `start` script uses `npx tsx src/index.ts` (runs .ts directly, doesn't need compiled .js)
+
+4. Errors and fixes:
+   - **TypeScript compilation error** in `tests/daytona_sandbox.test.ts`: `Type 'boolean' is not assignable to type 'void | Promise<void>'` on line 22. The arrow function `(data) => process.stdout.write(data)` implicitly returned a boolean. Fixed by wrapping in block form `(data) => { process.stdout.write(data); }`.
+   - **Unwanted .js files alongside .ts source**: `npx tsc` emitted `.js` files next to `.ts` files because `tsconfig.json` had no `outDir`. User pointed this out. Fixed by adding `"outDir": "dist"` to tsconfig, adding `dist/` to `.gitignore`, and deleting the stale `.js` files from `src/`, `src/lib/`, and `tests/`.
+
+5. Problem Solving:
+   - Successfully refactored procedural code to OOP class structure
+   - Fixed the known JSON parsing flakiness by adding `parseLine()` with `startsWith("{")` guard
+   - Fixed TypeScript type error in test file
+   - Resolved unwanted compiled `.js` file placement issue
+   - All tests pass after both rounds of changes (`npm run test:pr` passed twice)
+
+6. All user messages:
+   - First message: "Implement the following plan: [detailed refactoring plan for SandboxQueueProcessor class]"
+   - Second message: "why did you create a .js variant of the src + lib + test files? is there a point in having is with .ts or is it unwanted redundancy?"
+   - Third message: "yes pls put them into a dist dir instead"
+   - Fourth message: (this summary request)
+
+7. Pending Tasks:
+   - No explicit pending tasks. Both the refactoring and the dist directory change have been completed and verified with passing tests.
+
+8. Current Work:
+   The most recent work was adding `"outDir": "dist"` to `tsconfig.json`, adding `dist/` to `.gitignore`, deleting stale `.js` files from source directories, and verifying everything still compiles and tests pass. This was completed successfully.
+
+9. Optional Next Step:
+   No explicit next steps remain. Both user requests (the OOP refactoring and the dist directory configuration) have been fully completed and verified. Changes have not been committed — the user may want to commit these changes.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/ob1/.REDACTED.jsonl
+
+---
+
+I want to save this "style" of OOP and production-grade maintainability and readability in the rest of my project, please come up with a user memory section that I can add to my CLAUDE.md user memory file.
+
+---
+
+Add it to *Project-level memory instead, and then commit all changes
+
+---
+
+we need @vitest.config.ts and it is functional and working right?
