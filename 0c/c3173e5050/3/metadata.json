@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "0cc3173e5050",
+  "session_id": "74b8b136-4bc1-4ca5-8975-cbd19049858f",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-12T10:58:45.679159Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/daytona-log-streaming.md",
+    "documentation/agent_skills.md",
+    "src/lib/SandboxQueueProcessor.ts"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 120057,
+    "cache_read_tokens": 1020198,
+    "output_tokens": 5168,
+    "api_call_count": 24
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-12T10:58:45.643326Z",
+    "agent_lines": 46,
+    "human_added": 0,
+    "human_modified": 71,
+    "human_removed": 3,
+    "total_committed": 117,
+    "agent_percentage": 39.31623931623932
+  }
+}

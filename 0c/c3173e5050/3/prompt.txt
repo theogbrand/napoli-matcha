@@ -1,0 +1,109 @@
+Analyze log streaming in Daytona's official documentation (https://www.daytona.io/docs/en/log-streaming.md), branch out and implement the change so I can view the Claude Code Logs as they are being generated in the sandboxes created in @index.ts
+
+---
+
+It still doesn't seem to be logging the log stream from my sandbox
+
+---
+
+I still cannot see my claude code logs stream from my Daytona sandbox. 
+
+Relook the current implementation, and also refer to a working implementation of streaming claude code logs on a local machine below:
+
+## How Claude Code Logs Are Piped and Logged
+
+Here's a complete overview of the logging pipeline in Horizon:
+
+### 1. **Spawning Claude Code** (`src/lib/claude.ts:327-333`)
+
+```typescript
+const proc = spawn('claude', args, {
+  stdio: ['pipe', 'pipe', 'pipe'],
+  cwd: options.workingDirectory || config.workingDirectory,
+});
+```
+
+- Uses Node.js `child_process.spawn()` to execute the `claude` CLI
+- Args include `--output-format=stream-json` and `--verbose` for structured output
+- Sets up three pipes: stdin, stdout, stderr
+
+### 2. **Capturing stdout** (`src/lib/claude.ts:341-394`)
+
+```typescript
+proc.stdout.on('data', (chunk: Buffer) => {
+  const text = chunk.toString();
+  output += text;  // Accumulate raw output
+  
+  for (const line of text.split('\n')) {
+    // 1. Log raw JSON line to file
+    logAgentOutput(agentNumber, line);
+    
+    // 2. Parse and format the JSON
+    const json = JSON.parse(line);
+    const formatted = processJsonLine(json);
+    
+    // 3. Display to console
+    if (formatted) {
+      console.log(formatted);
+      
+      // 4. Log formatted output to terminal log
+      logTerminalOutput(agentNumber, formatted);
+    }
+  }
+});
+```
+
+Each line goes through:
+- **Raw logging**: `logAgentOutput()` saves raw JSON to `agent-{n}.log`
+- **Parsing**: JSON is parsed and formatted by `processJsonLine()`
+- **Console output**: Pretty-printed to terminal via `console.log()`
+- **Formatted logging**: `logTerminalOutput()` saves formatted text to `agent-{n}-terminal.log`
+
+### 3. **Capturing stderr** (`src/lib/claude.ts:396-406`)
+
+```typescript
+proc.stderr.on('data', (chunk: Buffer) => {
+  const text = chunk.toString().trim();
+  if (text) {
+    const stderrMsg = `${DIM}stderr: ${text}${RESET}`;
+    console.error(stderrMsg);
+    logTerminalOutput(agentNumber, stderrMsg);
+  }
+});
+```
+
+### 4. **Log File Structure** (`src/lib/output-logger.ts`)
+
+Logs are saved in a hierarchical structure:
+
+```
+.horizon/output/
+  └── {pod-name}/          # e.g., "arctic-lynx"
+      └── loop-{n}/        # e.g., "loop-0", "loop-1"
+          ├── agent-1.log          # Raw JSON from Agent 1
+          ├── agent-1-terminal.log # Formatted console output
+          ├── agent-2.log
+          ├── agent-2-terminal.log
+          ├── agent-3.log
+          └── agent-3-terminal.log
+```
+
+### 5. **Output Formatting** (`src/lib/claude.ts:109-291`)
+
+The `processJsonLine()` function formats different message types:
+
+- **System messages**: Init boxes, status indicators, context compaction
+- **Tool calls**: Green dots with function signatures like `Read(file_path="src/file.ts")`
+- **Tool results**: Formatted with tree connectors, capped at 3 lines
+- **Assistant text**: Rendered markdown with model/context tags
+- **Subagent spawns**: Yellow arrows showing task descriptions
+- **Session stats**: Final cost, duration, token usage
+
+### Key Features:
+
+1. **Dual logging**: Both raw JSON (for debugging) and formatted output (for readability)
+2. **Real-time streaming**: Output appears immediately as Claude generates it
+3. **Silent failures**: File logging errors don't interrupt the main process
+4. **Structured organization**: Logs organized by pod name and loop iteration
+
+This architecture allows you to both watch real-time progress in the terminal and review detailed logs later for debugging or analysis.
