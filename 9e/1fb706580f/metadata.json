@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "9e1fb706580f",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".gitignore",
+    "CLAUDE.md",
+    "src/index.ts",
+    "src/lib/SandboxQueueProcessor.ts",
+    "tests/daytona_sandbox.test.ts",
+    "tsconfig.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9e/1fb706580f/0/metadata.json",
+      "transcript": "/9e/1fb706580f/0/full.jsonl",
+      "context": "/9e/1fb706580f/0/context.md",
+      "content_hash": "/9e/1fb706580f/0/content_hash.txt",
+      "prompt": "/9e/1fb706580f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3546,
+    "cache_creation_tokens": 61684,
+    "cache_read_tokens": 794737,
+    "output_tokens": 6646,
+    "api_call_count": 27
+  }
+}
