@@ -1,7 +1,9 @@
 {
   "type": "module",
   "scripts": {
-    "test:pr": "npx tsx tests/pr_creation_test.mts",
+    "test": "vitest run",
+    "test:pr": "vitest run tests/pr_creation.test.ts",
+    "test:sandbox": "vitest run tests/daytona_sandbox.test.ts",
     "start": "npx tsx src/index.ts"
   },
   "dependencies": {
@@ -11,6 +13,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.18"
   }
 }
