@@ -13,3 +13,5 @@ dist/
 .mypy_cache/
 .claude
 .entire
+# Horizon runtime data
+.horizon/
