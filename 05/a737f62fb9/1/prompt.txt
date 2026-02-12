@@ -1,0 +1,1 @@
+Analyze @logs/AGU-3/agent-1.log, it seems like the agent struggles with pushing the branch to remote before the PR is created. Can you add a guide to do so smoothly and add it to @CLAUDE.md so in the future the agent can refer to this guide to smoothly create PRs without the same errors in the most token efficient path?
