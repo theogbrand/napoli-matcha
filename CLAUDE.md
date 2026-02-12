@@ -51,3 +51,28 @@
 - Encapsulate event registration/emission in a dedicated `Hooks` class with typed event names
 - Register handlers via public `.on(eventName, handler)` API; keep handler map private
 - Support composability — allow merging or combining hook instances via `.merge()` method
+
+## Testing Requirements
+
+### When to Write Tests
+Every change to the core workflow (`src/index.ts`, `src/lib/*.ts`) MUST include corresponding tests when any of the following apply:
+- A new public method is added to a class
+- A new private method encapsulates non-trivial logic (parsing, state transitions, error handling)
+- The task processing pipeline gains a new step (e.g., new setup, new execution mode, new cleanup)
+- A new interface or data shape is introduced that flows through the system
+- An existing method's behavior or signature changes
+
+### What to Test
+- **Unit tests** for pure logic: parsing (frontmatter, JSON, PTY output), data transformations, input validation, status transitions
+- **Integration tests** for end-to-end workflows: queue loading → sandbox execution → status update
+- Place tests in `tests/` with the naming convention `<feature>.test.ts`
+
+### Test Quality Standards
+- Tests must assert on specific outcomes, not just "no error thrown"
+- Cover both the happy path and at least one meaningful failure case (bad input, missing fields, malformed data)
+- Use descriptive test names that state the expected behavior: `"updates task status from Backlog to Done after successful run"`
+- Keep tests independent — no shared mutable state between test cases
+
+### Enforcement
+- Before marking a feature complete, run `npm test` and confirm all tests pass
+- If a new feature cannot be covered by a fast unit test (e.g., requires live Daytona sandboxes), add an integration test and document the required environment variables
