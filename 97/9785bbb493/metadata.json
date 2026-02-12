@@ -3,11 +3,17 @@
   "checkpoint_id": "979785bbb493",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 1,
+  "checkpoints_count": 5,
   "files_touched": [
     "package.json",
     "request_queue/pr_creation_test.md",
-    "tests/pr_creation_test.mts"
+    "tests/daytona_sandbox.test.ts",
+    "tests/daytona_sandbox_test.mts",
+    "tests/daytona_sandbox_test.ts",
+    "tests/pr_creation.test.ts",
+    "tests/pr_creation_test.mts",
+    "tests/pr_creation_test.ts",
+    "vitest.config.ts"
   ],
   "sessions": [
     {
@@ -16,13 +22,20 @@
       "context": "/97/9785bbb493/0/context.md",
       "content_hash": "/97/9785bbb493/0/content_hash.txt",
       "prompt": "/97/9785bbb493/0/prompt.txt"
+    },
+    {
+      "metadata": "/97/9785bbb493/1/metadata.json",
+      "transcript": "/97/9785bbb493/1/full.jsonl",
+      "context": "/97/9785bbb493/1/context.md",
+      "content_hash": "/97/9785bbb493/1/content_hash.txt",
+      "prompt": "/97/9785bbb493/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 142,
-    "cache_creation_tokens": 21929,
-    "cache_read_tokens": 541455,
-    "output_tokens": 2690,
-    "api_call_count": 17
+    "input_tokens": 1253,
+    "cache_creation_tokens": 42428,
+    "cache_read_tokens": 914226,
+    "output_tokens": 3339,
+    "api_call_count": 32
   }
 }

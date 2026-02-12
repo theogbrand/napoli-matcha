@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "979785bbb493",
+  "session_id": "b597dabb-1f7a-43eb-9d2d-9cd1f52da8db",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-12T03:36:01.589517Z",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "package.json",
+    "tests/daytona_sandbox.test.ts",
+    "tests/daytona_sandbox_test.mts",
+    "tests/daytona_sandbox_test.ts",
+    "tests/pr_creation.test.ts",
+    "tests/pr_creation_test.mts",
+    "tests/pr_creation_test.ts",
+    "vitest.config.ts"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "fb747447-0fd7-4bb9-bb66-6b3f38532204",
+  "token_usage": {
+    "input_tokens": 1111,
+    "cache_creation_tokens": 20499,
+    "cache_read_tokens": 372771,
+    "output_tokens": 649,
+    "api_call_count": 15
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-12T03:36:01.580719Z",
+    "agent_lines": 89,
+    "human_added": 1417,
+    "human_modified": 77,
+    "human_removed": 0,
+    "total_committed": 1583,
+    "agent_percentage": 5.622236260265319
+  }
+}
