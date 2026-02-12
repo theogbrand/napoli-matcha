@@ -52,6 +52,35 @@
 - Register handlers via public `.on(eventName, handler)` API; keep handler map private
 - Support composability — allow merging or combining hook instances via `.merge()` method
 
+## Git Push & PR Creation in Sandboxes
+
+When running inside a Daytona sandbox (or any environment where `GITHUB_TOKEN` is set but git has no credential helper), follow this exact sequence to push and create PRs without errors.
+
+### Step 1: Configure git auth (once, before first push)
+```bash
+gh auth setup-git
+```
+This configures git to use `gh` as the credential helper, which automatically uses `GITHUB_TOKEN` from the environment. Do NOT try manual credential helpers with bash functions — they fail in non-bash shells (e.g., `dash`/`sh`).
+
+### Step 2: Push the branch
+```bash
+git push -u origin <branch-name>
+```
+
+### Step 3: Create the PR with `--head` flag
+Always pass `--head` to avoid "you must first push" detection failures:
+```bash
+gh pr create --head <branch-name> --title "..." --body "$(cat <<'EOF'
+...
+EOF
+)"
+```
+
+### Common pitfalls to avoid
+- **Do NOT** use `git config credential.helper '!f() { ... }; f'` — breaks in non-bash shells
+- **Do NOT** omit `--head` from `gh pr create` — `gh` may not detect the just-pushed branch
+- **Do NOT** try `git push` before running `gh auth setup-git` — HTTPS remotes need credentials
+
 ## Testing Requirements
 
 ### When to Write Tests
