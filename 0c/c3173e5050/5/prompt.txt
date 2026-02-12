@@ -1,0 +1,17 @@
+give me the command to run the test suite in this project
+
+---
+
+npm run test:pr
+
+---
+
+[Request interrupted by user]
+
+---
+
+<bash-input>npm run test:pr</bash-input>
+
+---
+
+[Request interrupted by user]
