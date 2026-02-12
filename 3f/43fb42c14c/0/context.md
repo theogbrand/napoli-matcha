@@ -1,0 +1,8 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+Check @CLAUDE.md I think there are repetitive OOP architecture rules in there, see if you can sharpen it so it is non-repetitive, succint. Bias towards being more detailed and specific, like in the second ## Production Grade OOP Architecture section which gives more specific rules rather than general OOP rules in the top section.
+
