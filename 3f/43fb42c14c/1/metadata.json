@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "3f43fb42c14c",
+  "session_id": "cae98e19-aa52-4da7-afb9-981237862fae",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-12T11:21:29.015786Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".gitignore",
+    "src/lib/SandboxQueueProcessor.ts"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 94,
+    "cache_creation_tokens": 20340,
+    "cache_read_tokens": 627313,
+    "output_tokens": 1195,
+    "api_call_count": 20
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-12T11:21:29.004511Z",
+    "agent_lines": 0,
+    "human_added": 9,
+    "human_modified": 78,
+    "human_removed": 0,
+    "total_committed": 87,
+    "agent_percentage": 0
+  }
+}
