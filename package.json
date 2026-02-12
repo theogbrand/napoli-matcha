@@ -1,5 +1,9 @@
 {
   "type": "module",
+  "scripts": {
+    "test:pr": "npx tsx tests/pr_creation_test.mts",
+    "start": "npx tsx src/index.ts"
+  },
   "dependencies": {
     "@daytonaio/sdk": "^0.140.0",
     "dotenv": "^17.2.4",
