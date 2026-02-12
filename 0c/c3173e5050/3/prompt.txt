@@ -107,3 +107,7 @@ The `processJsonLine()` function formats different message types:
 4. **Structured organization**: Logs organized by pod name and loop iteration
 
 This architecture allows you to both watch real-time progress in the terminal and review detailed logs later for debugging or analysis.
+
+---
+
+Finally! PTY works! now update the @docs/daytona-log-streaming.md docs so it reflects how log streaming works ONLY via PTY and not the previously recommended approach

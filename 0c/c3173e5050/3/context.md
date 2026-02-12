@@ -27,3 +27,7 @@ const proc = spawn('claude', args, {
   stdio: ['pipe', 'pipe', 'pipe'],
   cwd: options.workingDirectory |...
 
+### Prompt 4
+
+Finally! PTY works! now update the @docs/daytona-log-streaming.md docs so it reflects how log streaming works ONLY via PTY and not the previously recommended approach
+

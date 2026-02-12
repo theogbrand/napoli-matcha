@@ -3,14 +3,13 @@
   "checkpoint_id": "0cc3173e5050",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 8,
+  "checkpoints_count": 6,
   "files_touched": [
     ".claude/settings.json",
     "CLAUDE.md",
     "docs/agent_skills.md",
     "docs/daytona-log-streaming.md",
     "documentation/agent_skills.md",
-    "src/lib/SandboxQueueProcessor.ts",
     "tsconfig.json"
   ],
   "sessions": [
@@ -58,10 +57,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 265,
-    "cache_creation_tokens": 179838,
-    "cache_read_tokens": 1841962,
-    "output_tokens": 8821,
-    "api_call_count": 53
+    "input_tokens": 238,
+    "cache_creation_tokens": 63015,
+    "cache_read_tokens": 1031062,
+    "output_tokens": 3705,
+    "api_call_count": 32
   }
 }

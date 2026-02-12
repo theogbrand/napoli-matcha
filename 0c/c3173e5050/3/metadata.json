@@ -3,29 +3,31 @@
   "checkpoint_id": "0cc3173e5050",
   "session_id": "74b8b136-4bc1-4ca5-8975-cbd19049858f",
   "strategy": "manual-commit",
-  "created_at": "2026-02-12T10:58:45.679159Z",
+  "created_at": "2026-02-12T11:02:14.426377Z",
   "branch": "main",
-  "checkpoints_count": 3,
+  "checkpoints_count": 1,
   "files_touched": [
     "docs/daytona-log-streaming.md",
-    "documentation/agent_skills.md",
-    "src/lib/SandboxQueueProcessor.ts"
+    "documentation/agent_skills.md"
   ],
   "agent": "Claude Code",
+  "transcript_identifier_at_start": "edfe74fe-92fc-48eb-a4e0-94189aae30e7",
+  "checkpoint_transcript_start": 238,
+  "transcript_lines_at_start": 238,
   "token_usage": {
-    "input_tokens": 32,
-    "cache_creation_tokens": 120057,
-    "cache_read_tokens": 1020198,
-    "output_tokens": 5168,
-    "api_call_count": 24
+    "input_tokens": 5,
+    "cache_creation_tokens": 3234,
+    "cache_read_tokens": 209298,
+    "output_tokens": 52,
+    "api_call_count": 3
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-12T10:58:45.643326Z",
-    "agent_lines": 46,
-    "human_added": 0,
-    "human_modified": 71,
-    "human_removed": 3,
-    "total_committed": 117,
-    "agent_percentage": 39.31623931623932
+    "calculated_at": "2026-02-12T11:02:14.386642Z",
+    "agent_lines": 84,
+    "human_added": 62,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 146,
+    "agent_percentage": 57.534246575342465
   }
 }
