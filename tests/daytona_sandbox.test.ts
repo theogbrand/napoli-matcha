@@ -19,7 +19,9 @@ describe("Daytona sandbox", () => {
 
       const ptyHandle = await sandbox.process.createPty({
         id: "claude",
-        onData: (data) => process.stdout.write(data),
+        onData: (data) => {
+          process.stdout.write(data);
+        },
       });
 
       await ptyHandle.waitForConnection();

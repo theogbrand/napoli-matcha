@@ -5,7 +5,8 @@
     "moduleResolution": "nodenext",
     "strict": true,
     "types": ["node"],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "outDir": "dist"
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "*.ts"],
   "exclude": ["node_modules", "dist"]
