@@ -210,50 +210,67 @@ export class SandboxQueueProcessor {
 IMPORTANT: Use \`gh\` CLI for creating the PR (GITHUB_TOKEN is already set in the environment). Do NOT use interactive flags.`;
 
     const escaped = fullPrompt.replace(/'/g, "'\\''");
-    const cmd = `export PATH=~/.npm-global/bin:~/bin:$PATH && claude -p '${escaped}' --dangerously-skip-permissions --output-format=stream-json --model ${this.config.claudeModel} --verbose`;
-    const env = {
-      ANTHROPIC_API_KEY: this.config.anthropicApiKey,
-      GITHUB_TOKEN: this.config.githubToken,
-      PATH: `/home/daytona/.npm-global/bin:/home/daytona/bin:${process.env.PATH || "/usr/local/bin:/usr/bin:/bin"}`,
-    };
+    const claudeCmd = `claude -p '${escaped}' --dangerously-skip-permissions --output-format=stream-json --model ${this.config.claudeModel} --verbose`;
 
-    console.log(`[${label}] Executing command: ${cmd}`);
-    const response = await sandbox.process.executeCommand(cmd, repoDir, env);
-    this.parseStreamingOutput(response.result, label);
+    console.log(`[${label}] Starting Claude via PTY...`);
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const pty = await sandbox.process.createPty({
+      id: `claude-${label}-${Date.now()}`,
+      cwd: repoDir,
+      envs: {
+        ANTHROPIC_API_KEY: this.config.anthropicApiKey,
+        GITHUB_TOKEN: this.config.githubToken,
+        PATH: "/home/daytona/.npm-global/bin:/home/daytona/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      },
+      onData: (data: Uint8Array) => {
+        const text = decoder.decode(data, { stream: true });
+        process.stdout.write(`[${label}] ${text}`);
+
+        buffer += text;
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!;
+
+        for (const line of lines) {
+          this.handleStreamLine(line, label);
+        }
+      },
+    });
+
+    await pty.waitForConnection();
+    pty.sendInput(`${claudeCmd}\n`);
+    pty.sendInput("exit\n");
+
+    const result = await pty.wait();
+
+    // Flush remaining buffer
+    if (buffer.trim()) {
+      this.handleStreamLine(buffer, label);
+    }
+
+    console.log(`[${label}] PTY exited with code: ${result.exitCode}`);
   }
 
-  private parseStreamingOutput(output: string, label: string): void {
-    const lines = output.split("\n").filter(Boolean);
+  private handleStreamLine(line: string, label: string): void {
+    const stripped = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").trim();
+    if (!stripped || !stripped.startsWith("{")) return;
 
-    for (const line of lines) {
-      const event = this.parseLine(line);
-      if (!event) continue;
+    try {
+      const event = JSON.parse(stripped);
 
       if (event.type === "assistant" && event.message?.content) {
         for (const block of event.message.content) {
           if (block.type === "text") {
-            console.log(`[${label}] ${block.text}`);
+            console.log(`\n[${label}:assistant] ${block.text}`);
           }
         }
       } else if (event.type === "result") {
-        console.log(`[${label}] Result: ${event.result}`);
+        console.log(`\n[${label}:result] ${event.result}`);
       }
-    }
-  }
-
-  private parseLine(line: string): any | null {
-    const trimmed = line.trim();
-
-    // Skip empty lines or lines that don't start with '{'
-    if (!trimmed || !trimmed.startsWith("{")) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(trimmed);
-    } catch (error) {
-      // Malformed JSON - log but don't crash
-      return null;
+    } catch {
+      // Partial or malformed JSON — skip
     }
   }
 }
