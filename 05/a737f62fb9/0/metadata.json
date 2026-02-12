@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "05a737f62fb9",
+  "session_id": "cae98e19-aa52-4da7-afb9-981237862fae",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-12T11:42:07.388216Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "request_queue/country_test.md",
+    "request_queue/joke_test.md",
+    "request_queue/pr_creation_test.md",
+    "src/lib/SandboxQueueProcessor.ts"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "7ada05f9-f6b8-4f00-81b5-7e6e193a804c",
+  "checkpoint_transcript_start": 145,
+  "transcript_lines_at_start": 145,
+  "token_usage": {
+    "input_tokens": 150,
+    "cache_creation_tokens": 179988,
+    "cache_read_tokens": 1111533,
+    "output_tokens": 2203,
+    "api_call_count": 20
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-12T11:42:07.36394Z",
+    "agent_lines": 92,
+    "human_added": 276,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 369,
+    "agent_percentage": 24.932249322493224
+  }
+}
