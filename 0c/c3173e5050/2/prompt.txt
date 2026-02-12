@@ -1,0 +1,267 @@
+Analyze the DeepWiki conversation I have below about production-grade, highly maintainable Object Oriented approach to building a product. Create a CLAUDE.md section by updating @CLAUDE.md with a section about how future code changes should resemble the Open Source project standard that Instructor demonstrates below:
+
+## Instructor: Class-Based Object Oriented Programming Architecture
+This codemap demonstrates Instructor's class-based Object Oriented Programming architecture through its core class hierarchy [1a], inheritance patterns [1b], factory-based instantiation [1c], and composition patterns [2a]. The traces show how OOP principles like encapsulation [2a], inheritance [4b], polymorphism [5a], and type safety through protocols [3a] are implemented throughout the codebase. Key locations include the main Instructor class definition [1a], the Hooks encapsulation system [2a], protocol-based type safety [3a], and polymorphic method dispatch [5b].
+### 1. Core Class Hierarchy and Instantiation
+How the main Instructor classes are structured and instantiated through factory functions
+### 1a. Core Instructor Class Definition (`client.py:212`)
+Main class with typed attributes following OOP encapsulation principles
+```text
+class Instructor:
+    client: Any | None
+    create_fn: Callable[..., Any]
+    mode: instructor.Mode
+    default_model: str | None = None
+    provider: Provider
+    hooks: Hooks
+```
+### 1b. AsyncInstructor Inheritance (`client.py:577`)
+Inheritance-based specialization for async operations
+```text
+class AsyncInstructor(Instructor):
+    client: Any | None
+    create_fn: Callable[..., Any]
+    mode: instructor.Mode
+    default_model: str | None = None
+    provider: Provider
+    hooks: Hooks
+```
+### 1c. Instructor Instantiation (`client.py:835`)
+Factory function creating Instructor instances with dependency injection
+```text
+return Instructor(
+            client=client,
+            create=instructor.patch(
+                create=(
+                    client.chat.completions.create
+                    if mode
+                    not in {
+                        instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
+                        instructor.Mode.RESPONSES_TOOLS,
+                    }
+                    else partial(map_chat_completion_to_response, client=client)
+                ),
+                mode=mode,
+            ),
+            mode=mode,
+            provider=provider,
+            **kwargs,
+        )
+```
+### 1d. AsyncInstructor Factory Creation (`client.py:855`)
+Polymorphic factory creating async variant based on client type
+```text
+if isinstance(client, openai.AsyncOpenAI):
+        return AsyncInstructor(
+            client=client,
+            create=instructor.patch(
+                create=(
+                    client.chat.completions.create
+                    if mode
+                    not in {
+                        instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
+                        instructor.Mode.RESPONSES_TOOLS,
+                    }
+                    else partial(async_map_chat_completion_to_response, client=client)
+                ),
+                mode=mode,
+            ),
+            mode=mode,
+            provider=provider,
+            **kwargs,
+        )
+```
+### 2. Composition and Encapsulation Patterns
+How classes use composition and encapsulation to provide structured functionality
+### 2a. Hooks Class Encapsulation (`hooks.py:66`)
+Encapsulated event handling system with private attributes
+```text
+class Hooks:
+    """
+    Hooks class for handling and emitting events related to completion processes.
+
+    This class provides a mechanism to register event handlers and emit events
+    for various stages of the completion process.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the hooks container."""
+        self._handlers: defaultdict[HookName, list[HandlerType]] = defaultdict(list)
+```
+### 2b. Method-Based Event Registration (`hooks.py:78`)
+Public interface for internal state modification
+```text
+def on(
+        self,
+        hook_name: HookNameType,
+        handler: HandlerType,
+    ) -> None:
+        """
+        Register an event handler for a specific event.
+        """
+        hook_name = self.get_hook_name(hook_name)
+        self._handlers[hook_name].append(handler)
+```
+### 2c. Operator Overloading for Composition (`hooks.py:229`)
+Operator overloading enabling functional composition
+```text
+def __add__(self, other: Hooks) -> Hooks:
+        """
+        Combine two Hooks instances into a new one.
+        """
+        if not isinstance(other, Hooks):
+            return NotImplemented
+
+        combined = Hooks()
+
+        # Copy handlers from self
+        for hook_name, handlers in self._handlers.items():
+            combined._handlers[hook_name].extend(handlers.copy())
+```
+### 2d. Composition in Constructor (`client.py:237`)
+Dependency injection and composition pattern in main class
+```text
+self.hooks = hooks or Hooks()
+```
+### 3. Protocol-Based Type System
+How protocols and type classes enforce interfaces and enable polymorphism
+### 3a. Protocol Interface Definition (`patch.py:37`)
+Structural typing defining callable interfaces
+```text
+class InstructorChatCompletionCreate(Protocol):
+    def __call__(
+        self,
+        response_model: type[T_Model] | None = None,
+        validation_context: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
+        max_retries: int | Retrying = 1,
+        *args: Any,
+        **kwargs: Any,
+    ) -> T_Model: ...
+```
+### 3b. Async Protocol Interface (`patch.py:49`)
+Async variant protocol for type safety
+```text
+class AsyncInstructorChatCompletionCreate(Protocol):
+    async def __call__(
+        self,
+        response_model: type[T_Model] | None = None,
+        validation_context: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
+        max_retries: int | AsyncRetrying = 1,
+        *args: Any,
+        **kwargs: Any,
+    ) -> T_Model: ...
+```
+### 3c. Enum-Based Type Safety (`hooks.py:12`)
+Strong typing through enumeration classes
+```text
+class HookName(Enum):
+    COMPLETION_KWARGS = "completion:kwargs"
+    COMPLETION_RESPONSE = "completion:response"
+    COMPLETION_ERROR = "completion:error"
+    COMPLETION_LAST_ATTEMPT = "completion:last_attempt"
+    PARSE_ERROR = "parse:error"
+```
+### 3d. Provider Enumeration (`providers.py:9`)
+Type-safe provider identification through enum classes
+```text
+class Provider(Enum):
+    OPENAI = "openai"
+    VERTEXAI = "vertexai"
+    ANTHROPIC = "anthropic"
+    ANYSCALE = "anyscale"
+    TOGETHER = "together"
+```
+### 4. Inheritance and Specialization Patterns
+How inheritance hierarchies enable code reuse and specialization
+### 4a. Base Response Class (`client.py:33`)
+Base class providing common response handling
+```text
+class Response:
+    def __init__(
+        self,
+        client: Instructor,
+    ):
+        self.client = client
+```
+### 4b. AsyncResponse Inheritance (`client.py:135`)
+Specialized async response handling through inheritance
+```text
+class AsyncResponse(Response):
+    def __init__(self, client: AsyncInstructor):
+        self.client = client
+```
+### 4c. Method Override Pattern (`client.py:139`)
+Polymorphic method overriding for async behavior
+```text
+async def create(
+        self,
+        input: str | list[ChatCompletionMessageParam],
+        response_model: type[T] | None = None,
+        max_retries: int | AsyncRetrying = 3,
+        validation_context: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
+        strict: bool = True,
+        **kwargs,
+    ) -> T | Any:
+        if isinstance(input, str):
+            input = [
+                {
+                    "role": "user",
+                    "content": input,
+                }
+            ]
+
+        return await self.client.create(
+```
+### 4d. Pydantic Inheritance (`function_calls.py:105`)
+Inheritance from external library base classes for schema generation
+```text
+class OpenAISchema(BaseModel):
+    # Ignore classproperty, since Pydantic doesn't understand it like it would a normal property.
+    model_config = ConfigDict(ignored_types=(classproperty,))
+```
+### 5. Polymorphic Behavior and Method Dispatch
+How the system uses polymorphism for different client types and modes
+### 5a. Property-Based Polymorphism (`client.py:294`)
+Self-returning properties enabling fluent interface
+```text
+@property
+    def chat(self) -> Self:
+        return self
+
+    @property
+    def completions(self) -> Self:
+        return self
+```
+### 5b. Dynamic Method Dispatch (`client.py:570`)
+Runtime method delegation to wrapped client
+```text
+def __getattr__(self, attr: str) -> Any:
+        if attr not in {"create", "chat", "messages"}:
+            return getattr(self.client, attr)
+
+        return getattr(self, attr)
+```
+### 5c. Conditional Polymorphism (`patch.py:143`)
+Runtime polymorphic function selection based on function type
+```text
+func_is_async = is_async(func)
+
+    new_create = new_create_async if func_is_async else new_create_sync
+```
+### 5d. Provider-Specific Polymorphism (`client.py:807`)
+Behavior variation based on provider type through conditional logic
+```text
+if provider in {Provider.OPENROUTER}:
+        assert mode in {
+            instructor.Mode.TOOLS,
+            instructor.Mode.OPENROUTER_STRUCTURED_OUTPUTS,
+            instructor.Mode.JSON,
+        }
+```
+
+---
+
+Edit plan to NOT mention Instructor in the CLAUDE.md file. Use Instructor as a model example, that's all.
