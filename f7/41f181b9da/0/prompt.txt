@@ -1,0 +1,113 @@
+Implement the following plan:
+
+# Plan: Extend Agent Flow to Clone Repo, Implement Features, and Create PRs
+
+## Context
+
+Currently `src/index.ts` creates sandboxes that run Claude CLI with the `description` as a bare prompt (e.g. "write a dad joke"). The `repo` field in the frontmatter is unused. We need to extend the flow so each sandbox:
+1. Clones the repo
+2. Runs Claude CLI **inside the cloned repo** with the description as a feature request
+3. Claude creates a branch, implements the feature, commits, pushes, and opens a PR
+
+## Changes — `src/index.ts`
+
+### 1. Update `runInSandbox` signature to accept `repo`
+
+```ts
+async function runInSandbox(prompt: string, label: string, repo: string)
+```
+
+### 2. Clone the repo using Daytona Git API
+
+After sandbox creation, before installing tools:
+
+```ts
+const repoDir = "/home/daytona/repo";
+await sandbox.git.clone(repo, repoDir);
+console.log(`[${label}] Repo cloned`);
+```
+
+### 3. Install both Claude Code and `gh` CLI
+
+```ts
+await sandbox.process.executeCommand(
+  "npm install -g @anthropic-ai/claude-code && (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main' | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && apt-get update && apt-get install gh -y)"
+);
+```
+
+### 4. Update the Claude prompt to include feature implementation + PR instructions
+
+Wrap the description with instructions to create a branch, implement the feature, commit, push, and create a PR via `gh`.
+
+### 5. Pass `GITHUB_TOKEN` alongside `ANTHROPIC_API_KEY` in env
+
+```ts
+const env = {
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
+  GITHUB_TOKEN: process.env.GITHUB_TOKEN!,
+};
+```
+
+`gh` automatically uses `GITHUB_TOKEN` for auth — no `gh auth login` needed.
+
+### 6. Run Claude CLI with `cwd` set to the cloned repo
+
+```ts
+const response = await sandbox.process.executeCommand(cmd, repoDir, env);
+```
+
+### 7. Pass `data.repo` from the caller
+
+```ts
+runInSandbox(data.description, `${data.title}-${i + 1}`, data.repo)
+```
+
+## Env Requirements
+
+Add `GITHUB_TOKEN` to `.env` (alongside existing `DAYTONA_API_KEY` and `ANTHROPIC_API_KEY`).
+
+## Verification
+
+1. Add `GITHUB_TOKEN` to `.env`
+2. Run `npx tsx src/index.ts`
+3. Confirm: sandbox created → repo cloned → Claude implements feature → PR created on GitHub → sandbox deleted
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/ob1/.REDACTED.jsonl
+
+---
+
+Double check that this is the most direct and straightforward way to install the gh CLI in the Daytona sandbox.
+
+---
+
+im getting an error in the sandbox where gh CLI tool is not isntalled, and GITHUB_TOKEN is getting 403 permissions:
+- The `gh` CLI tool is not installed in this environment
+
+---
+
+npx tsx src/index.ts
+[dotenv@17.2.4] injecting env (3) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+Processing: joke test
+[joke test-1] Sandbox created
+[joke test-1] Repo cloned
+[joke test-1] Installing Claude CLI...
+[joke test-1] Claude CLI installed: ✗
+[joke test-1] Installing GitHub CLI...
+[joke test-1] GitHub CLI install exit code: 100
+[joke test-1] Failed to install gh CLI: 
+WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+
+Reading package lists...
+Error: List directory /var/lib/apt/lists/partial is missing. - Acquire (13: Permission denied)
+
+[joke test-1] Deleted
+/Users/ob1/projects/opus-hackathon/napoli-matcha/src/index.ts:31
+      throw new Error("Failed to install gh CLI");
+            ^
+
+Error: Failed to install gh CLI
+
+---
+
+commit and push this with message "works but flaky" - need to stream STOUT logs
