@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "05a737f62fb9",
+  "session_id": "d4e67562-94eb-4f22-8962-18975d56b060",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-13T22:47:35.151223Z",
+  "branch": "ralph-loop",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/openclaw-deployment-research.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "82a5cb64-9d09-4c90-816f-9cf6436155a2",
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 7717,
+    "cache_read_tokens": 171933,
+    "output_tokens": 354,
+    "api_call_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-13T22:47:35.146009Z",
+    "agent_lines": 0,
+    "human_added": 2328,
+    "human_modified": 169,
+    "human_removed": 0,
+    "total_committed": 2497,
+    "agent_percentage": 0
+  }
+}
