@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "05a737f62fb9",
+  "session_id": "70d00361-a25c-4fe4-acf0-57dcfda5841e",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-13T22:47:35.05914Z",
+  "branch": "ralph-loop",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/skills/execPlan/SKILL.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "d4b0c2e4-84b0-4756-b9fd-da1f6f7ecbcc",
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 23383,
+    "cache_read_tokens": 185614,
+    "output_tokens": 21,
+    "api_call_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-13T22:47:35.027598Z",
+    "agent_lines": 0,
+    "human_added": 2497,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2497,
+    "agent_percentage": 0
+  }
+}
