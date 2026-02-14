@@ -32,7 +32,7 @@ Before starting work, verify you have received valid input:
    - issue_identifier
    - issue_title
    - stage (should be "implement")
-   - existing_artifacts.plan (path to plan document) — OR an "Existing Artifacts" section provided by the orchestrator above
+   - existing_artifacts.plan (path to plan document)
 
 If ANY of these are missing or the input is unclear:
 
@@ -60,8 +60,7 @@ You do NOT have access to Linear. All issue context is provided above.
 
 ### Step 1: Read the Plan Document
 
-Check the **"Existing Artifacts"** section above (provided by the orchestrator) for the path to the plan document. If not present there, fall back to `existing_artifacts.plan` from the DISPATCH_RESULT. Also read any research document listed in the artifacts — it provides context for the plan.
-
+Read the plan document from `existing_artifacts.plan`.
 Understand:
 - The phases and their order
 - The success criteria
