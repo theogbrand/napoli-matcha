@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "ac2469727924",
+  "session_id": "86a1dc8c-20be-4dcd-ba5a-64801a3fd35a",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-14T12:03:32.265728Z",
+  "branch": "ralph-loop",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "IMPLEMENTATION_PLAN.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "83424d74-e838-46c7-8539-84d5d38e2de7",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 21919,
+    "cache_read_tokens": 102038,
+    "output_tokens": 16,
+    "api_call_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-14T12:03:32.258449Z",
+    "agent_lines": 157,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 157,
+    "agent_percentage": 100
+  }
+}
