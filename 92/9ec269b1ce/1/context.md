@@ -1,0 +1,20 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+Read through @IMPLEMENTATION_PLAN.md carefully top to bottom to read back the clarity of the plan is aligned with the feature enhancements I had in mind, especially since I have edited the plan indepedently multiple times
+
+### Prompt 2
+
+Lets discuss edits to issue #1
+
+### Prompt 3
+
+Oh, do Option B but with 1 add-on, which is to set the ticket as requiring human review after the new tests fail. Essentially giving the validator 1 chance at writing new tests to pass, otherwise raise the ticket for human intervention.
+
+### Prompt 4
+
+yes, apply the edits
+
