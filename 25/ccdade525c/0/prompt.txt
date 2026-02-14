@@ -1,0 +1,152 @@
+## Agent Instance
+
+You are part of pod: **crystal-chimera** / Loop 0 / Agent 2 (Worker)
+
+This identifier format is: Pod Name / Loop Number / Agent Number (Role).
+- **Pod Name**: crystal-chimera - persists for this entire Horizon session
+- **Loop Number**: 0 - increments each time Horizon processes a new ticket
+- **Agent**: Agent 2 (Worker) - your role in this loop
+
+## Linear Team Configuration
+
+**Team Key**: POLY
+
+This team key is used for all Linear MCP tool calls. While you don't make Linear calls directly, this context may be passed to other agents.
+
+---
+
+## Context from Linear (gathered by Agent 1)
+
+I have all the context needed. Here is the output for Agent 2:
+
+---
+
+## Issue Details for Agent 2
+
+**Issue ID**: `267648d1-f5e8-4893-b530-94e7ff0374ab`
+**Identifier**: POLY-39
+**Title**: POLY-36b: SpecAgent — Quality Gate + Ticket Writer
+**Status**: `∞ Implement In Progress` (just claimed)
+**Stage to Execute**: **implement**
+**Priority**: Not set
+**Labels**: None
+**Project**: opus-hackathon (ID: `97fa10ed-7315-4fc2-8e0b-e046b1eeb867`)
+**Git Branch**: `ogb/poly-39-poly-36b-specagent-quality-gate-ticket-writer`
+
+## Description
+
+Build the front-door quality gate that evaluates user requests against spec criteria, runs a clarification loop (max 3 rounds), detects variant requests, and writes structured tickets to feature_requests/ directory.
+Includes ID continuation logic (nextFeatureRequestId, nextTicketId) and variant chain handling.
+See Sub-Issue 2 of the implementation plan.
+
+**Estimated Scope**: ~180 LOC source + ~120 LOC tests
+
+**Dependencies**: Requires POLY-36a to be completed first.
+
+**Plan Reference**: See horizon-docs/plans/2026-02-14-POLY-36-agent-pipeline-enhancement.md - Sub-Issue 2
+
+## Parent Issue
+
+**POLY-36: Agent Pipeline Enhancement** — This is a large feature with 4 sequential sub-issues. The parent contains the full implementation plan with detailed specifications for the SpecAgent in **Phase 1**.
+
+The parent issue description contains the complete spec for the SpecAgent including:
+- **Clarification Loop**: Stateless retry loop using `ClaudeSpawner`, max 3 rounds, passes accumulated context
+- **Spec Quality Criteria**: 5 criteria (Problem Statement, Success Criteria, User-Facing Behavior, Boundaries & Constraints, Context & Background)
+- **Variant Detection**: Duplicate full dependency chain per variant with independent IDs
+- **Ticket Writing**: Creates `feature_requests/FR-{n}/` directory structure with YAML frontmatter MD files
+- **ID Continuation**: Reads existing `feature_requests/` to find max FR-{n} and AGI-{n} IDs
+- **Human Interaction**: Uses Node `readline` for clarification Q&A
+- **Output Format**: QUESTIONS or TICKETS structured output from agent
+- **Stage-Skipping**: `start_status` field per ticket based on specification completeness
+
+## Sibling Sub-Issues (Sequential Order)
+
+1. **POLY-38 (Sub-Issue 1: Foundations)** — **Done** ✅. Created TaskStatus enum (18 statuses, 6 helpers), PromptLoader, ClaudeSpawner. PR: https://github.com/theogbrand/napoli-matcha/pull/1. Branch: `horizon/POLY-38`. Committed files:
+   - `src/lib/TaskStatus.ts` (~80 LOC)
+   - `src/lib/PromptLoader.ts` (~35 LOC)
+   - `src/lib/ClaudeSpawner.ts` (~115 LOC)
+   - `prompts/agent0-spec.md`
+   - `prompts/agent2-worker-test.md`
+   - `prompts/fragments/merge-auto.md`, `merge-direct.md`, `merge-pr.md`
+   - Tests: `tests/task_status.test.ts`, `tests/prompt_loader.test.ts`, `tests/claude_spawner.test.ts`
+
+2. **POLY-39 (Sub-Issue 2: SpecAgent)** — **THIS ISSUE** (∞ Implement In Progress)
+
+3. **POLY-40 (Sub-Issue 3: Orchestrator Refactor)** — `∞ Needs Implement` (blocked until POLY-39 is done per sequential order)
+
+4. **POLY-41 (Sub-Issue 4: Test-Writer + Entry Point)** — `∞ Needs Implement` (blocked until POLY-39 and POLY-40 are done)
+
+## Blocking/Blocked Relationships
+
+- **Blocked by**: POLY-38 (Done ✅ — foundations are available)
+- **Blocks**: POLY-40 and POLY-41 (per parent's sequential execution order)
+- No formal Linear relation edges, but parent issue mandates strict sequential execution
+
+## Key Context from Parent Plan (Phase 1 — SpecAgent)
+
+The SpecAgent (`src/lib/SpecAgent.ts`) should:
+
+1. **Use `ClaudeSpawner`** (from POLY-38) to spawn Claude CLI for spec evaluation
+2. **Use `PromptLoader`** (from POLY-38) to load `prompts/agent0-spec.md` and fill `{{variables}}`
+3. **Implement `clarify(userRequest: string): Promise<TaskRequest[]>`** as the main entry point
+4. **Stateless retry loop**: Each spawn passes full accumulated context (original request + all Q&A so far)
+5. **Parse output**: Detect QUESTIONS vs TICKETS format from agent output
+6. **Human interaction**: Use Node `readline` to prompt for answers to clarifying questions
+7. **Write tickets**: Create `feature_requests/FR-{n}/` directories with `request.md` and `AGI-{n}.md` files
+8. **Variant handling**: Duplicate full dependency chain per variant, each with independent IDs and `group` field
+9. **ID continuation**: Glob `feature_requests/` for existing max FR and AGI IDs, start from max+1
+
+The `prompts/agent0-spec.md` prompt file was already created in POLY-38.
+
+## Previous Work Artifacts
+
+- POLY-38's implementation on branch `horizon/POLY-38` (PR #1) contains the foundation modules this issue depends on
+- Validation report at `horizon-docs/validation/2026-02-14-POLY-38-foundations.md`
+- Plan reference at `horizon-docs/plans/2026-02-14-POLY-36-agent-pipeline-enhancement.md`
+
+---
+
+# Agent 2: Worker
+
+You are the Worker agent. Agent 1 has already selected and claimed a Linear issue for you to work on. The issue context is provided above.
+
+## First Step: Load Stage-Specific Instructions
+
+Agent 1 has specified which stage to execute. **Read the detailed instructions for your stage before doing any work.**
+
+| Stage | Instructions File |
+|-------|-------------------|
+| oneshot | `.horizon/prompts/agent2-worker-oneshot.md` |
+| research | `.horizon/prompts/agent2-worker-research.md` |
+| specification | `.horizon/prompts/agent2-worker-specification.md` |
+| plan | `.horizon/prompts/agent2-worker-plan.md` |
+| implement | `.horizon/prompts/agent2-worker-implement.md` |
+| validate | `.horizon/prompts/agent2-worker-validate.md` |
+
+**Read the file for your stage now, then follow those instructions exactly.**
+
+## Quick Reference (details in stage-specific file)
+
+### Branch Workflow
+- You run in an isolated git worktree already on branch `horizon/{issue-identifier}`
+- Never push directly to main; do NOT run `git checkout main`
+- All merges happen via PR creation
+
+### Output Format
+All stages output a `WORK_RESULT` block. See your stage-specific file for the exact format.
+
+## Important Notes
+
+- You do NOT have access to Linear - don't try to update it
+- All Linear context you need is provided above from Agent 1
+- If something is unclear, make reasonable assumptions and note them
+- If you encounter errors you can't fix, document them clearly
+
+## Attachments
+
+If the Linear issue has attachments (images, documents, etc.), they are automatically downloaded to:
+```
+.horizon/attachments/{issue-identifier}/
+```
+
+For example, attachments for issue F-69 would be in `.horizon/attachments/F-69/`. Check this folder if the issue description references attached files - you can read them directly from there instead of trying to fetch URLs.

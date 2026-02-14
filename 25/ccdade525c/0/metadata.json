@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "25ccdade525c",
+  "session_id": "6496158f-4deb-4d3c-9e6e-5cb76c9238e5",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-14T13:32:40.786022Z",
+  "branch": "horizon/POLY-39",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "horizon-docs/plans/2026-02-14-POLY-36-agent-pipeline-enhancement.md",
+    "request_queue/pr_creation_test.md",
+    "src/lib/SpecAgent.ts",
+    "tests/spec_agent.test.ts"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 37,
+    "cache_creation_tokens": 49707,
+    "cache_read_tokens": 2141619,
+    "output_tokens": 306,
+    "api_call_count": 36
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-14T13:32:40.754132Z",
+    "agent_lines": 0,
+    "human_added": 3473,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 3474,
+    "agent_percentage": 0
+  }
+}
