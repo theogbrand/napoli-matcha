@@ -1,0 +1,8 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+Append a section at the bottom of @IMPLEMENTATION_PLAN.md after ## Verification that instructs Claude Code to create the necessary tests in @tests/ for all new core workflows included in this spec.
+
