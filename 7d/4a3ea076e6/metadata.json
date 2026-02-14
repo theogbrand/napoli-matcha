@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "7d4a3ea076e6",
+  "strategy": "manual-commit",
+  "branch": "horizon/POLY-40",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "horizon-docs/prs/POLY-40.md",
+    "horizon-docs/validation/2026-02-14-POLY-40-orchestrator-refactor.md",
+    "request_queue/pr_creation_test.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7d/4a3ea076e6/0/metadata.json",
+      "transcript": "/7d/4a3ea076e6/0/full.jsonl",
+      "context": "/7d/4a3ea076e6/0/context.md",
+      "content_hash": "/7d/4a3ea076e6/0/content_hash.txt",
+      "prompt": "/7d/4a3ea076e6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 45999,
+    "cache_read_tokens": 1687434,
+    "output_tokens": 294,
+    "api_call_count": 29
+  }
+}

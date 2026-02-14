@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "7d4a3ea076e6",
+  "session_id": "a6c62c32-fa2e-4447-9333-56002bce2321",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-14T13:47:43.700238Z",
+  "branch": "horizon/POLY-40",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "horizon-docs/prs/POLY-40.md",
+    "horizon-docs/validation/2026-02-14-POLY-40-orchestrator-refactor.md",
+    "request_queue/pr_creation_test.md"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 45999,
+    "cache_read_tokens": 1687434,
+    "output_tokens": 294,
+    "api_call_count": 29
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-14T13:47:43.678541Z",
+    "agent_lines": 0,
+    "human_added": 144,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 145,
+    "agent_percentage": 0
+  }
+}
