@@ -143,9 +143,10 @@ or
 ### Step 6: Git Commit and Push
 
 ```bash
+gh auth setup-git   # configure GITHUB_TOKEN as git credential helper
 git add horizon-docs/validation/
 git commit -m "validate({identifier}): {PASSED|FAILED}"
-git push origin horizon/{identifier}
+git push --force-with-lease origin horizon/{identifier}
 ```
 
 {{MERGE_INSTRUCTIONS}}

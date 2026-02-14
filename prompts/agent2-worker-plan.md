@@ -172,9 +172,10 @@ The document should follow this structure:
 ### Step 5: Git Commit and Push
 
 ```bash
+gh auth setup-git   # configure GITHUB_TOKEN as git credential helper
 git add horizon-docs/plans/
 git commit -m "plan({identifier}): {short description}"
-git push origin horizon/{identifier}
+git push --force-with-lease origin horizon/{identifier}
 ```
 
 ## Output Format

@@ -114,7 +114,7 @@ WORK_RESULT:
 
 After completing your work, push directly to the branch:
 ```bash
-git push origin <branch>
+git push --force-with-lease origin <branch>
 ```
 
 Do NOT create a Pull Request.

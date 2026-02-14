@@ -73,9 +73,10 @@ Fix any issues that arise. If the repo doesn't have these scripts, skip this ste
 ### Step 5: Git Commit and Push
 
 ```bash
+gh auth setup-git   # configure GITHUB_TOKEN as git credential helper
 git add .
 git commit -m "feat({{TASK_ID}}): {short description}"
-git push origin {{BRANCH_NAME}}
+git push --force-with-lease origin {{BRANCH_NAME}}
 ```
 
 {{MERGE_INSTRUCTIONS}}

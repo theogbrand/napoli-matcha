@@ -305,10 +305,10 @@ After completing your work:
 
 For PRs, use:
 ```bash
-gh pr create --head <branch> --title "<title>" --body "<summary of changes>"
+gh pr create --base main --head <branch> --title "<title>" --body "<summary of changes>"
 ```
 
 For direct push:
 ```bash
-git push origin <branch>
+git push --force-with-lease origin <branch>
 ```

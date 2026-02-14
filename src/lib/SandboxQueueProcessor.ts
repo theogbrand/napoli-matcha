@@ -205,15 +205,14 @@ export class SandboxQueueProcessor {
     const terminal = this.isTerminal(task, allTasks);
     const mergeFragment = this.loadMergeFragment(terminal);
 
-    const stagePrompt = loadPrompt(promptName, {
+    const fullPrompt = loadPrompt(promptName, {
       TASK_ID: task.id,
       TASK_TITLE: task.title,
       TASK_DESCRIPTION: task.description,
       BRANCH_NAME: branch,
       REPO: task.repo,
+      MERGE_INSTRUCTIONS: mergeFragment,
     });
-
-    const fullPrompt = `${stagePrompt}\n\n${mergeFragment}`;
 
     const label = `${task.id}:${task.status}`;
     console.log(`[${label}] Dispatching stage...`);
@@ -360,6 +359,16 @@ export class SandboxQueueProcessor {
     await sandbox.process.executeCommand(
       'git config --global user.name "Claude Agent"',
     );
+
+    // Configure gh as git credential helper so GITHUB_TOKEN is used for HTTPS push
+    const authSetup = await sandbox.process.executeCommand(
+      "export PATH=/home/daytona/bin:/home/daytona/.npm-global/bin:$PATH && gh auth setup-git",
+    );
+    console.log(`[${label}] gh auth setup-git exit code: ${authSetup.exitCode}`);
+    if (authSetup.exitCode !== 0) {
+      console.error(`[${label}] gh auth setup-git failed: ${authSetup.result}`);
+    }
+
     console.log(`[${label}] Git configured`);
   }
 
