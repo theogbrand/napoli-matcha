@@ -158,7 +158,7 @@ WORK_RESULT:
 
 After completing your work, always create a Pull Request:
 ```bash
-gh pr create --head <branch> --title "<title>" --body "<summary of changes>"
+gh pr create --base main --head <branch> --title "<title>" --body "<summary of changes>"
 ```
 
 Do NOT push directly to the main branch.

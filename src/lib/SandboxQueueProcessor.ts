@@ -115,7 +115,32 @@ export class SandboxQueueProcessor {
     task: TaskRequest,
     sandboxIndex: number
   ): Promise<void> {
-    const label = `${task.title}-${sandboxIndex}`;
+    const promptName = stagePromptMap[task.status];
+    if (!promptName) {
+      console.error(`[Orchestrator] No prompt mapping for status: ${task.status}`);
+      return;
+    }
+
+    const branch = this.branchName(task);
+    const terminal = this.isTerminal(task, allTasks);
+    const mergeFragment = this.loadMergeFragment(terminal);
+
+    const fullPrompt = loadPrompt(promptName, {
+      TASK_ID: task.id,
+      TASK_TITLE: task.title,
+      TASK_DESCRIPTION: task.description,
+      BRANCH_NAME: branch,
+      REPO: task.repo,
+      MERGE_INSTRUCTIONS: mergeFragment,
+    });
+
+    const label = `${task.id}:${task.status}`;
+    console.log(`[${label}] Dispatching stage...`);
+
+    // Set in-progress status
+    const ipStatus = inProgressStatus(task.status);
+    await this.updateTaskStatus(task, ipStatus);
+
     const logDir = join(this.logsDir, task.id);
     const logFile = join(logDir, `agent-${sandboxIndex}.log`);
 
@@ -213,6 +238,16 @@ export class SandboxQueueProcessor {
     await sandbox.process.executeCommand(
       'git config --global user.name "Claude Agent"'
     );
+
+    // Configure gh as git credential helper so GITHUB_TOKEN is used for HTTPS push
+    const authSetup = await sandbox.process.executeCommand(
+      "export PATH=/home/daytona/bin:/home/daytona/.npm-global/bin:$PATH && gh auth setup-git",
+    );
+    console.log(`[${label}] gh auth setup-git exit code: ${authSetup.exitCode}`);
+    if (authSetup.exitCode !== 0) {
+      console.error(`[${label}] gh auth setup-git failed: ${authSetup.result}`);
+    }
+
     console.log(`[${label}] Git configured`);
   }
 

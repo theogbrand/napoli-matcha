@@ -102,7 +102,8 @@ After all phases are complete:
 ### Step 5: Push All Commits
 
 ```bash
-git push origin horizon/{identifier}
+gh auth setup-git   # configure GITHUB_TOKEN as git credential helper
+git push --force-with-lease origin horizon/{identifier}
 ```
 
 ### Step 6: Update Plan Document

@@ -131,11 +131,12 @@ Create a brief document at:
 ### Step 6: Git Commit and Push
 
 ```bash
+gh auth setup-git   # configure GITHUB_TOKEN as git credential helper
 git add .
-git commit -m "fix({identifier}): {short description}"
+git commit -m "feat({{TASK_ID}}): {short description}"
 # or "chore({identifier}): ..." for chores
 # or "feat({identifier}): ..." for small features
-git push origin horizon/{identifier}
+git push --force-with-lease origin {{BRANCH_NAME}}
 ```
 
 {{MERGE_INSTRUCTIONS}}
