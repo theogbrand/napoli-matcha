@@ -1,4 +1,6 @@
-# Plan: Napoli-Matcha Agent Pipeline
+# Plan: Agent Pipeline Enhancement in Napoli-Matcha project
+
+> Refer to Horizon CLI agent repository at path (/Users/ob1/projects/startup/horizon-cli-agent) for references on working implementations of features ported over from Horizon Agent.
 
 ## Full Pipeline
 
@@ -152,6 +154,7 @@ private async promptHuman(questions: string[]): Promise<string> {
 
 ### Writing Tickets
 
+<!-- I need 2 IDs here, one to track the feature requests from the user, the other to track the tickets for the implementation; for ease of implementation, also create a dir "feature_requests_id" to store the feature request. If a feature request has variants requsted by the user, create a separate directory to store each "group" of tickets per variant -->
 After the spec is complete, writes each ticket as an MD file to `request_queue/`:
 
 ```markdown
@@ -490,3 +493,127 @@ User gets 2 PRs to compare side-by-side.
    - Terminal tickets create PR and attempt merge
    - Group branch accumulates commits across chain
 5. **Existing tests**: `npm test` passes
+
+---
+
+## Phase 5: Test-Writer Subagent (deterministic pipeline step)
+
+### Purpose
+
+Every worker execution is followed by a **test-writer step** in the same sandbox. This is not optional — it is a deterministic part of the pipeline that produces tests scoped to the work just completed.
+
+### Two-Tier Testing Strategy
+
+| Ticket type | Unit tests | Integration tests |
+|-------------|-----------|-------------------|
+| **Non-terminal** (has downstream dependents) | Yes — cover all new/changed public methods and non-trivial private logic | No |
+| **Terminal** (end of chain) | Yes | Yes — cover the full variant/dependency chain's interactions with each other and with pre-existing repo code |
+
+### Execution Flow
+
+The test-writer runs **inside `executeWorker()`**, after the worker agent finishes but before the sandbox is torn down:
+
+```
+executeWorker(task):
+  1. Worker agent implements feature, commits, pushes
+  2. Test-writer agent runs in same sandbox:
+     a. Reads the git diff (all commits on this branch vs main)
+     b. Reads the ticket description + acceptance criteria
+     c. If terminal: also reads all tickets in the group chain for integration context
+     d. Writes test files to tests/
+     e. Runs `npm test` to verify all tests pass
+     f. Commits test files, pushes to same branch
+  3. Return combined WORK_RESULT (implementation + test summary)
+```
+
+### Test-Writer Prompt (embedded in code)
+
+```
+You are a Test-Writer Agent. You have just received a completed implementation in this
+sandbox. Your job is to write tests for the code that was changed.
+
+## Context
+
+**Ticket**: {ticket title + description + acceptance criteria}
+**Branch diff vs main**: {git diff main...HEAD}
+**Is terminal ticket**: {true/false}
+{If terminal and grouped: **Full chain tickets**: {all ticket descriptions in this group}}
+
+## Rules
+
+1. Use `vitest` as the test framework. Place tests in `tests/<feature>.test.ts`.
+2. Follow existing test patterns in the repo (see tests/ for examples).
+3. Write **unit tests** for:
+   - Every new public method on any class
+   - Non-trivial private logic (parsing, state transitions, validation)
+   - Both happy path and at least one meaningful failure case per method
+   - Use descriptive test names: "returns 401 for expired JWT tokens"
+4. If this is a **terminal ticket**, also write **integration tests** that:
+   - Exercise the full chain of features built across this variant group
+   - Test interactions between the new code and pre-existing repo code
+   - Cover end-to-end flows from the user's perspective where applicable
+5. Mock external dependencies (network, sandboxes, Claude CLI) — never call real services.
+6. Run `npm test` after writing. If tests fail, fix them before committing.
+7. Commit all test files with message: "test: add tests for {ticket title}"
+
+## Output
+
+TEST_RESULT
+---
+files_created: [list of test file paths]
+unit_tests: {count}
+integration_tests: {count}
+all_passing: {true/false}
+---
+```
+
+### Orchestrator Integration
+
+Modify `executeWorker()` to include the test-writer step:
+
+```typescript
+private async executeWorker(task: TaskRequest): Promise<WorkerResult> {
+  const sandbox = await this.createSandbox(task);
+
+  // Step 1: Implementation worker
+  const implResult = await this.runWorkerAgent(sandbox, task);
+
+  // Step 2: Test-writer (same sandbox, deterministic)
+  const isTerminal = await this.isTerminal(task);
+  const testPrompt = this.buildTestWriterPrompt(task, isTerminal);
+  const testResult = await this.runTestWriterAgent(sandbox, testPrompt);
+
+  return { impl: implResult, tests: testResult };
+}
+```
+
+### `writeResults` Update
+
+The result block now includes test metadata:
+
+```markdown
+## Results
+
+**Completed**: 2026-02-14T12:00:00Z
+**Branch**: feat/dashboard-v2
+
+### Summary
+{parsed from WORK_RESULT}
+
+### Tests
+- Unit tests: 8
+- Integration tests: 3 (terminal only)
+- Files: tests/auth_middleware.test.ts, tests/dashboard_api.test.ts
+- All passing: true
+
+### Artifacts
+- Commit: abc1234 (implementation)
+- Commit: def5678 (tests)
+- PR: https://github.com/user/repo/pull/43 (only if terminal)
+```
+
+### Files Update
+
+| File | Change |
+|------|--------|
+| `src/lib/SandboxQueueProcessor.ts` | Add `buildTestWriterPrompt()`, `runTestWriterAgent()`, update `executeWorker()` to include test-writer step, update `writeResults()` to include test metadata |
