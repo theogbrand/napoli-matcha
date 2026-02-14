@@ -110,3 +110,11 @@ WORK_RESULT:
   error: |
     {What went wrong and why it couldn't be fixed}
 ```
+## Merge Strategy: Direct Push
+
+After completing your work, push directly to the branch:
+```bash
+git push origin <branch>
+```
+
+Do NOT create a Pull Request.
