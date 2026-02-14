@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import matter from "gray-matter";
 import { exec } from "child_process";
@@ -27,6 +27,18 @@ describe("PR creation", () => {
       cwd: join(import.meta.dirname, ".."),
       maxBuffer: 10 * 1024 * 1024,
     });
+
+    // Save full test output to logs/ for debugging
+    const logsDir = join(import.meta.dirname, "..", "logs", "test-runs");
+    await mkdir(logsDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const logPath = join(logsDir, `pr-creation-${timestamp}.log`);
+    await writeFile(logPath, [
+      `=== Test Run: ${new Date().toISOString()} ===`,
+      `\n=== STDOUT ===\n${stdout}`,
+      `\n=== STDERR ===\n${stderr}`,
+    ].join("\n"));
+    console.log(`Test output saved to: ${logPath}`);
 
     if (stdout) console.log(stdout);
     if (stderr) console.error(stderr);

@@ -8,9 +8,9 @@ import { SandboxQueueProcessor } from "../src/lib/SandboxQueueProcessor.js";
 /** Wait for fire-and-forget appendFile calls to settle */
 const flush = () => new Promise((r) => setTimeout(r, 50));
 
-function makeProcessor(queueDir: string): SandboxQueueProcessor {
+function makeProcessor(featureRequestsDir: string): SandboxQueueProcessor {
   const p = new SandboxQueueProcessor("dummy-key");
-  (p as any).queueDir = queueDir;
+  (p as any).featureRequestsDir = featureRequestsDir;
   return p;
 }
 
@@ -128,144 +128,138 @@ describe("Agent logs", () => {
     });
   });
 
-  describe("loadTasksFromQueue - ID assignment", () => {
+  describe("loadAllTasks - ID assignment", () => {
     let processor: SandboxQueueProcessor;
-    let queueDir: string;
+    let frDir: string;
 
     beforeEach(async () => {
-      queueDir = join(tmpDir, "queue");
-      await mkdir(queueDir, { recursive: true });
-      processor = makeProcessor(queueDir);
+      frDir = join(tmpDir, "feature_requests");
+      await mkdir(join(frDir, "FR-1"), { recursive: true });
+      processor = makeProcessor(frDir);
     });
 
-    it("assigns AGI-1 to a Backlog task with no ID", async () => {
-      await writeFrontmatter(join(queueDir, "task.md"), {
+    it("assigns AGI-1 to a task with no ID", async () => {
+      await writeFrontmatter(join(frDir, "FR-1", "AGI-0.md"), {
         title: "Test Task",
         description: "Do something",
         repo: "https://github.com/test/repo",
-        number_of_sandboxes: 1,
         status: "Backlog",
       });
 
-      const tasks = await (processor as any).loadTasksFromQueue();
+      const tasks = await (processor as any).loadAllTasks();
       expect(tasks).toHaveLength(1);
       expect(tasks[0].id).toBe("AGI-1");
-
-      // Verify written back to frontmatter
-      const { data } = matter(await readFile(join(queueDir, "task.md"), "utf-8"));
-      expect(data.id).toBe("AGI-1");
     });
 
     it("continues from the highest existing AGI-{n} across all files", async () => {
-      await writeFrontmatter(join(queueDir, "done.md"), {
+      await writeFrontmatter(join(frDir, "FR-1", "AGI-5.md"), {
         id: "AGI-5",
         title: "Done Task",
         description: "Already done",
         repo: "https://github.com/test/repo",
-        number_of_sandboxes: 1,
         status: "Done",
       });
-      await writeFrontmatter(join(queueDir, "new.md"), {
+      await mkdir(join(frDir, "FR-2"), { recursive: true });
+      await writeFrontmatter(join(frDir, "FR-2", "AGI-0.md"), {
         title: "New Task",
         description: "Needs ID",
         repo: "https://github.com/test/repo",
-        number_of_sandboxes: 1,
         status: "Backlog",
       });
 
-      const tasks = await (processor as any).loadTasksFromQueue();
-      expect(tasks).toHaveLength(1);
-      expect(tasks[0].id).toBe("AGI-6");
+      const tasks = await (processor as any).loadAllTasks();
+      // loadAllTasks returns ALL tasks, not just Backlog
+      expect(tasks).toHaveLength(2);
+      const newTask = tasks.find((t: any) => t.title === "New Task");
+      expect(newTask.id).toBe("AGI-6");
     });
 
-    it("returns no tasks when none are in Backlog status", async () => {
-      await writeFrontmatter(join(queueDir, "done.md"), {
+    it("returns all tasks regardless of status", async () => {
+      await writeFrontmatter(join(frDir, "FR-1", "AGI-1.md"), {
         id: "AGI-1",
         title: "Done",
         description: "Finished",
         repo: "https://github.com/test/repo",
-        number_of_sandboxes: 1,
         status: "Done",
       });
 
-      const tasks = await (processor as any).loadTasksFromQueue();
-      expect(tasks).toHaveLength(0);
+      const tasks = await (processor as any).loadAllTasks();
+      // loadAllTasks returns ALL tasks (filtering happens in filterEligible)
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0].status).toBe("Done");
     });
 
-    it("preserves existing IDs on Backlog tasks without reassigning", async () => {
-      await writeFrontmatter(join(queueDir, "has_id.md"), {
+    it("preserves existing IDs without reassigning", async () => {
+      await writeFrontmatter(join(frDir, "FR-1", "AGI-3.md"), {
         id: "AGI-3",
         title: "Has ID",
         description: "Already assigned",
         repo: "https://github.com/test/repo",
-        number_of_sandboxes: 1,
         status: "Backlog",
       });
 
-      const tasks = await (processor as any).loadTasksFromQueue();
+      const tasks = await (processor as any).loadAllTasks();
       expect(tasks).toHaveLength(1);
       expect(tasks[0].id).toBe("AGI-3");
-
-      // File should not have been rewritten
-      const { data } = matter(
-        await readFile(join(queueDir, "has_id.md"), "utf-8")
-      );
-      expect(data.id).toBe("AGI-3");
     });
 
-    it("assigns sequential IDs to multiple Backlog tasks missing IDs", async () => {
+    it("assigns sequential IDs to multiple tasks missing IDs", async () => {
       for (let i = 1; i <= 3; i++) {
-        await writeFrontmatter(join(queueDir, `task${i}.md`), {
+        await writeFrontmatter(join(frDir, "FR-1", `AGI-${i}0.md`), {
           title: `Task ${i}`,
           description: `Do thing ${i}`,
           repo: "https://github.com/test/repo",
-          number_of_sandboxes: 1,
           status: "Backlog",
         });
       }
 
-      const tasks = await (processor as any).loadTasksFromQueue();
+      const tasks = await (processor as any).loadAllTasks();
       expect(tasks).toHaveLength(3);
 
       const ids = tasks.map((t: any) => t.id).sort();
       expect(ids).toEqual(["AGI-1", "AGI-2", "AGI-3"]);
     });
 
-    it("ignores non-.md files in the queue directory", async () => {
-      await writeFile(join(queueDir, "README.txt"), "not a task");
-      await writeFrontmatter(join(queueDir, "task.md"), {
+    it("only picks up .md files matching AGI-*.md pattern", async () => {
+      await writeFile(join(frDir, "FR-1", "README.txt"), "not a task");
+      await writeFrontmatter(join(frDir, "FR-1", "AGI-1.md"), {
+        id: "AGI-1",
         title: "Real Task",
         description: "Do it",
         repo: "https://github.com/test/repo",
-        number_of_sandboxes: 1,
         status: "Backlog",
       });
 
-      const tasks = await (processor as any).loadTasksFromQueue();
+      const tasks = await (processor as any).loadAllTasks();
       expect(tasks).toHaveLength(1);
       expect(tasks[0].title).toBe("Real Task");
     });
 
     it("populates all TaskRequest fields correctly", async () => {
-      await writeFrontmatter(join(queueDir, "full.md"), {
+      await writeFrontmatter(join(frDir, "FR-1", "AGI-10.md"), {
         id: "AGI-10",
         title: "Full Task",
         description: "Complete description",
         repo: "https://github.com/test/repo",
-        number_of_sandboxes: 3,
         status: "Backlog",
+        dependsOn: ["AGI-5"],
+        group: "my-group",
+        variantHint: "Variant 1 of 2",
       });
 
-      const tasks = await (processor as any).loadTasksFromQueue();
+      const tasks = await (processor as any).loadAllTasks();
       expect(tasks[0]).toEqual({
         id: "AGI-10",
-        file: "full.md",
-        filePath: join(queueDir, "full.md"),
+        file: "AGI-10.md",
+        filePath: join(frDir, "FR-1", "AGI-10.md"),
+        featureRequest: "FR-1",
         title: "Full Task",
         description: "Complete description",
         repo: "https://github.com/test/repo",
-        numberOfSandboxes: 3,
         status: "Backlog",
+        dependsOn: ["AGI-5"],
+        group: "my-group",
+        variantHint: "Variant 1 of 2",
       });
     });
   });
