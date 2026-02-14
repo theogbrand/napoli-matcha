@@ -1,0 +1,8 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+Create a run_test.sh file that will run the npx command to run the tests, with an argument of the test to run.
+
