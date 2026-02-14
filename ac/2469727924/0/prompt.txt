@@ -1,0 +1,210 @@
+Re-read @IMPLEMENTATION_PLAN.md top to bottom carefully, and summarize the core agent workflow that this plan will implement in napoli-matcha. 
+
+I made several independent changes to this plan and want to double check that this plan is aligned with what I had in mind. Also, it is a long, detailed plan, so I want to be sure it is not contradictory and is aligned to what I had in mind.
+
+---
+
+Dig into all 6 issues and Ask me questions to resolve them one at a time.
+
+---
+
+Explain the considerations of what filterEligible should achieve and I will use that to determine which version (A/B) i had in mind.
+
+---
+
+in what scenario will someone pass only actionable tasks? since the user only passes feature requests to the spec-agent and spec-agent determines the start state of a task.
+
+---
+
+before u confirm version B, clarify that all tickets (* In Progress) should never be dispatched, not just Research In Progress as you mentioned above.
+
+---
+
+yes choose Version B and  move on to issue #2 and the rest.
+
+---
+
+I actually intended for Research/Spec/Plan to also be ran in the sandbox because running it in the Orchestrator locally will block worker agents from claiming the next non-blocking ticket in the queue right?
+
+---
+
+Is Agent 1 still required to reason about which tickets to prioritize and claim before others? My intention was for the spec agent to do so deterministically with running IDs of tickets, but would it be more robust to use an Agent to also "double check" this?
+
+For Agent 3, would an LLM still be useful to parse the WORK_RESULT logic from the worker agent's completed work or in the new design this is already done?
+
+---
+
+ok proceed with TypeScript
+
+---
+
+yes apply all changes to the plan
+
+---
+
+<local-command-stderr>Error: Compaction canceled.</local-command-stderr>
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. The user asked me to re-read IMPLEMENTATION_PLAN.md and summarize the core agent workflow, checking for contradictions and alignment issues.
+
+2. I provided a summary and identified 6 issues/contradictions in the plan.
+
+3. The user asked me to dig into all 6 issues and ask questions to resolve them one at a time.
+
+4. Issue #1 (filterEligible): User asked me to explain considerations rather than choose. I explained the two jobs (dispatch narrowing vs dependency checking) and the two versions. User pointed out that no one would realistically pass only actionable tasks since the orchestrator is the only caller. I confirmed Version B works. User asked me to confirm all In Progress statuses are excluded. I confirmed isActionable() handles all of them. User chose Version B.
+
+5. Issue #2 (Oneshot dispatch gap): I presented two options. User chose "Add NeedsOneshot status".
+
+6. Issue #3 (naming conflict): User clarified they intended all stages to run in sandboxes to keep the orchestrator lightweight. This eliminated the local vs sandbox distinction and resolved the naming conflict. User confirmed "Yes, all stages in sandboxes".
+
+7. Issue #4 (Agent 1 & 3): User asked if Agent 1 still needs to reason about prioritization, and if Agent 3 still needs LLM for parsing. I explained both are deterministic operations. User confirmed "ok proceed with TypeScript".
+
+8. Issue #5 (Dual ID TODO): User chose "Add feature request layer" with FR-{n} IDs and directories. Then chose "Subdirs per variant group".
+
+9. Issue #6 (Test-writer scope): User chose "Implement + Oneshot + Validate" for test-writer triggers.
+
+10. User asked me to apply all changes to the plan. I made 23 edits to IMPLEMENTATION_PLAN.md.
+
+Let me enumerate all the specific edits made to the file.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked me to re-read IMPLEMENTATION_PLAN.md, summarize the core agent workflow, and check for contradictions and alignment issues. After I identified 6 issues, the user asked me to dig into each one, ask clarifying questions, and then apply all resolved changes to the plan file.
+
+2. Key Technical Concepts:
+   - Multi-agent pipeline: Spec Agent → Orchestrator → Workers (in Daytona sandboxes) → Test-Writer
+   - Stage-aware dispatch: one stage per worker invocation, orchestrator re-dispatches based on WORK_RESULT `next_status`
+   - TaskStatus enum with 17+ granular statuses (Needs Research → Research In Progress → ... → Done)
+   - `filterEligible` function: narrows all tasks to dispatch candidates using `isActionable()` guard
+   - `isTerminal` check: only terminal tickets (nothing non-Done depends on them) get PR + merge
+   - Feature request layer: FR-{n} IDs for user requests, AGI-{n} IDs for implementation tickets
+   - Variant support: duplicate dependency chains with independent IDs, shared group branches
+   - WORK_RESULT structured YAML output format for inter-agent communication
+   - ClaudeSpawner for local Spec Agent execution
+
+3. Files and Code Sections:
+   - `REDACTED.md`
+     - This is the sole file modified. It's the comprehensive implementation plan for the napoli-matcha agent pipeline.
+     - **23 edits were applied** to resolve 6 identified issues:
+
+     **Issue #1 - filterEligible → Version B (2-param):**
+     - Replaced 3-param `filterEligible(actionableTasks, allTasks, active)` with 2-param `filterEligible(allTasks, active)` using `isActionable()` guard inside
+     - Updated `processQueue` from two loaders to single `loadAllTasks()`:
+       ```typescript
+       const allTasks = await this.loadAllTasks();  // every status
+       const eligible = this.filterEligible(allTasks, active);
+       ```
+     - Replaced "Two Task Loaders" section with "Single Task Loader" section describing `loadAllTasks()` globbing `feature_requests/**/AGI-*.md`
+     - Updated variant changes table and Files table to remove `loadActionableTasks()` references
+
+     **Issue #2 - Add NeedsOneshot status:**
+     - Added `NeedsOneshot = "Needs Oneshot"` to TaskStatus enum
+     - Added `"Needs Oneshot": "agent2-worker-oneshot.md"` to stagePromptMap
+     - Updated transition diagram: `SIMPLE ──→ Needs Oneshot ──→ Oneshot In Progress ──→ Done`
+     - Updated WORK_RESULT example comment: `# or "Needs Oneshot" for fast-track`
+     - Updated research stage description to output `"Needs Oneshot"` for fast-track
+     - Updated verification item #6
+
+     **Issue #3 - All stages in sandboxes:**
+     - Replaced line 486 `"Research/Spec/Plan stages can run without a sandbox"` with `"All worker stages run in Daytona sandboxes. Only the Spec Agent runs locally via ClaudeSpawner."`
+     - Unified `dispatchStage` as the single method. Updated the "How the Orchestrator Uses Statuses" code snippet:
+       ```typescript
+       async dispatchStage(task: TaskRequest, stagePrompt: string): Promise<StageResult> {
+         const sandbox = await this.createSandbox(task);
+         await this.updateTaskStatus(task, this.inProgressStatus(task.status));
+         const stageResult = await this.runWorkerAgent(sandbox, task, stagePrompt);
+         let testResult: TestResult | undefined;
+         if (this.codeProducingStages.has(task.status)) {
+           const isTerminal = await this.isTerminal(task);
+           testResult = await this.runTestWriterAgent(sandbox, this.buildTestWriterPrompt(task, isTerminal));
+         }
+         return { stage: stageResult, tests: testResult };
+       }
+       ```
+
+     **Issue #4 - Absorb agent1/agent3 into TypeScript:**
+     - Marked `agent1-linear-reader.md` and `agent3-linear-writer.md` as "Removed" in both the prompt mapping table and Files table
+     - Updated pipeline diagram to show Orchestrator (TypeScript) handling read/write instead of agent1/agent3
+     - Updated reference architecture table to note agent1/agent3 are "Absorbed into TypeScript orchestrator"
+     - Updated adaptation guidelines: `"Remove mcp__linear__* tool call references — queue reading and result writing are now handled by the TypeScript orchestrator"`
+
+     **Issue #5 - FR-{n} feature request layer with variant subdirs:**
+     - Removed the HTML TODO comment at line 257
+     - Replaced flat `request_queue/` with `feature_requests/FR-{n}/` directory structure:
+       ```
+       feature_requests/
+         FR-1/
+           request.md              # Original user request + clarification Q&A
+           dashboard-v1/           # Variant group subdirectory
+             AGI-5.md
+           dashboard-v2/
+             AGI-8.md
+         FR-2/
+           request.md
+           AGI-11.md               # No group → lives directly in FR dir
+       ```
+     - Added `request.md` format with YAML frontmatter
+     - Added `feature_request: FR-1` field to ticket frontmatter
+     - Added `featureRequest: string` to `TaskRequest` interface
+     - Updated all path references from `request_queue/` to `feature_requests/` throughout the document
+     - Updated Integration with Existing ID Scheme to glob `feature_requests/**/AGI-*.md`
+
+     **Issue #6 - Test-writer scope (Implement + Oneshot + Validate only):**
+     - Updated Purpose: "Worker stages that produce code (Implement, Oneshot, Validate) are followed by a test-writer step"
+     - Updated execution flow pseudocode from `executeWorker` to `dispatchStage` with conditional test-writer
+     - Updated orchestrator integration code with `codeProducingStages` set:
+       ```typescript
+       private readonly codeProducingStages = new Set([
+         "Needs Implement", "Needs Oneshot", "Needs Validate",
+       ]);
+       ```
+     - Updated Phase 5 files table to reference `dispatchStage()`
+
+4. Errors and fixes:
+   - No code errors. The issues were contradictions/gaps within the plan document itself.
+   - User feedback on Issue #1: Asked me to explain considerations rather than present options. After I explained, user pointed out no realistic scenario exists for passing only actionable tasks since the orchestrator is the only caller → confirmed Version B.
+   - User feedback on Issue #3: Corrected my assumption that Research/Spec/Plan could run locally. User intended all stages in sandboxes to avoid blocking the orchestrator from dispatching other tasks.
+   - User feedback on Issue #4: Asked me to explain whether LLM reasoning was still needed for agent1 (prioritization) and agent3 (WORK_RESULT parsing) before deciding → I explained both are deterministic, user confirmed TypeScript.
+
+5. Problem Solving:
+   - Identified 6 contradictions/gaps in the implementation plan
+   - Resolved each through targeted questions to the user
+   - Applied all resolutions as edits, then verified with grep searches that no stale references remained (`request_queue`, `executeWorker`, `loadActionableTasks`, `agent1-linear`, `agent3-linear` all cleaned up)
+
+6. All user messages:
+   - "Re-read @IMPLEMENTATION_PLAN.md top to bottom carefully, and summarize the core agent workflow that this plan will implement in napoli-matcha. I made several independent changes to this plan and want to double check that this plan is not contradictory and is aligned to what I had in mind."
+   - "Dig into all 6 issues and Ask me questions to resolve them one at a time."
+   - "Explain the considerations of what filterEligible should achieve and I will use that to determine which version (A/B) i had in mind."
+   - "in what scenario will someone pass only actionable tasks? since the user only passes feature requests to the spec-agent and spec-agent determines the start state of a task."
+   - "before u confirm version B, clarify that all tickets (* In Progress) should never be dispatched, not just Research In Progress as you mentioned above."
+   - "yes choose Version B and move on to issue #2 and the rest."
+   - (Issue #2 answer via tool): "Add NeedsOneshot status"
+   - "I actually intended for Research/Spec/Plan to also be ran in the sandbox because running it in the Orchestrator locally will block worker agents from claiming the next non-blocking ticket in the queue right?"
+   - (Issue #3 answer via tool): "Yes, all stages in sandboxes"
+   - "Is Agent 1 still required to reason about which tickets to prioritize and claim before others? My intention was for the spec agent to do so deterministically with running IDs of tickets, but would it be more robust to use an Agent to also 'double check' this? For Agent 3, would an LLM still be useful to parse the WORK_RESULT logic from the worker agent's completed work or in the new design this is already done?"
+   - "ok proceed with TypeScript"
+   - (Issue #5 answer via tool): "Add feature request layer"
+   - (Issue #5 follow-up via tool): "Subdirs per variant group"
+   - (Issue #6 answer via tool): "Implement + Oneshot + Validate"
+   - "yes apply all changes to the plan"
+
+7. Pending Tasks:
+   - None explicitly pending. All 6 issues were resolved and applied.
+
+8. Current Work:
+   All 6 resolved issues have been applied to IMPLEMENTATION_PLAN.md with 23 edits. Grep verification confirmed no stale references remain. The task was marked completed.
+
+9. Optional Next Step:
+   No explicit next step was requested. The user may want to review the updated plan or begin implementation.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/ob1/.REDACTED.jsonl
+
+---
+
+Clarify what the final structure of the requests_queue will be which stores the requests queues and tickets created by the spec agent
