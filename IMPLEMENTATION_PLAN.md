@@ -1,28 +1,51 @@
 <!--
 HORIZON AGENT INSTRUCTIONS:
 This plan contains 5 major phases with significant new components and core refactoring.
-Please decompose this into sub-issues for judicious parallel execution where possible.
+Decompose into sub-issues and execute SEQUENTIALLY — no parallel execution.
+Each sub-issue must be completed, tested, and merged before starting the next.
 
-Sub-issues with explicit dependencies:
-1. ClaudeSpawner (Phase 2)           — depends_on: []
-2. PromptLoader                      — depends_on: []
-3. TaskStatus enum + helpers         — depends_on: []
-4. SpecAgent (Phase 1)               — depends_on: [1, 2]
-5. Orchestrator refactor (Phase 3)   — depends_on: [2, 3]
-6. Test-Writer (Phase 5)             — depends_on: [5]
-7. Entry Point (Phase 4)             — depends_on: [4, 5]
-8. Prompt adaptations (agent2-worker*.md) — depends_on: []
+Sequential execution order (strict — each blocks the next):
 
-Execution waves:
-  Wave 1: #1 (ClaudeSpawner), #2 (PromptLoader), #3 (TaskStatus), #8 (Prompt adaptations)
-  Wave 2: #4 (SpecAgent), #5 (Orchestrator)  — #4 needs #1+#2, #5 needs #2+#3
-  Wave 3: #6 (Test-Writer), #7 (Entry Point) — #6 needs #5, #7 needs #4+#5
+Sub-issue 1: Foundations
+  Scope: ClaudeSpawner (Phase 2), PromptLoader, TaskStatus enum + helpers,
+         prompt adaptations (agent2-worker*.md)
+  Files: src/lib/ClaudeSpawner.ts, src/lib/PromptLoader.ts, src/lib/TaskStatus.ts,
+         prompts/agent2-worker.md
+  Verify: unit tests for each new module, npm test passes
+  blocks: [2]
 
-Notes:
-- Phase 3 (Orchestrator) is the most complex and touches many files
-- #8 is pure markdown edits with no code dependencies — safe for wave 1
-- #4 cannot be tested without #1 (SpecAgent uses ClaudeSpawner)
-- Merge agent is part of #5 (Orchestrator) — uses merge-auto.md fragment via PromptLoader
+Sub-issue 2: SpecAgent (Phase 1)
+  Scope: Spec quality gate, clarification loop, variant chain duplication, ticket writer
+  Files: src/lib/SpecAgent.ts, prompts/agent0-spec.md
+  Needs: ClaudeSpawner + PromptLoader from sub-issue 1
+  Verify: spec agent clarification loop, ticket writing, variant chains
+  blocks: [4]
+
+Sub-issue 3: Orchestrator refactor (Phase 3) — MOST COMPLEX
+  Scope: Stage-aware dispatch, filterEligible, isTerminal, branchName,
+         dispatchStage with conditional test-writer + merge agent,
+         continuous loop, status transitions, result writing
+  Files: src/lib/SandboxQueueProcessor.ts (heavy refactor)
+  Needs: PromptLoader + TaskStatus from sub-issue 1
+  Verify: stage dispatch, filterEligible, isTerminal, status transitions, npm test passes
+  NOTE: This is the highest-risk sub-issue — touches many existing files.
+        Take extra care with backwards compatibility during refactor.
+  blocks: [4]
+
+Sub-issue 4: Test-Writer + Entry Point (Phases 4 & 5)
+  Scope: Test-writer subagent prompt + integration into dispatchStage,
+         two-mode entry point (spec vs orchestrator)
+  Files: prompts/agent2-worker-test.md, src/index.ts
+  Needs: SpecAgent (sub-issue 2) + Orchestrator (sub-issue 3)
+  Verify: both CLI modes work, post-validate escalation logic,
+          end-to-end verification, npm test passes
+
+Rationale for sequential execution:
+- Eliminates merge conflict risk between sub-issues
+- Each step builds on tested, merged code — no missing foundation risk
+- Orchestrator (sub-issue 3) is the critical path and benefits from stable dependencies
+- If a step fails, the cause is unambiguous
+- Wave 1 parallelism would save minimal time (small modules) but adds coordination risk
 -->
 
 # Plan: Agent Pipeline Enhancement in Napoli-Matcha project
