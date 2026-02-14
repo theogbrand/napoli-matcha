@@ -322,8 +322,9 @@ async processQueue(): Promise<void> {
   const active = new Map<string, Promise<void>>();
 
   while (this.maxIterations === 0 || iteration < this.maxIterations) {
-    const tasks = await this.loadActionableTasks();  // all "Needs *" stage statuses
-    const eligible = this.filterEligible(tasks, active);
+    const actionable = await this.loadActionableTasks();  // "Needs *" stage statuses
+    const all = await this.loadAllTasks();                // every status
+    const eligible = this.filterEligible(actionable, all, active);
 
     if (eligible.length === 0 && active.size === 0) {
       console.log(`No tasks. Sleeping ${this.pollIntervalSeconds}s...`);
@@ -402,36 +403,48 @@ The Spec Agent is in the best position to judge this because it has already done
 
 > **Note**: Tickets never start at `Needs Validate` — validation only makes sense after implementation has occurred.
 
-### `filterEligible(tasks, active)` — Dependency + Stage Resolution
+### `filterEligible(actionableTasks, allTasks, active)` — Dependency + Stage Resolution
+
+**Important**: Dependency checks must run against **all tasks** (every status), not just the actionable ones. Otherwise, a dependency in `Research In Progress` (not a `Needs *` status, not in the in-memory `active` map after a restart) would be invisible and incorrectly treated as satisfied.
 
 ```typescript
 private filterEligible(
-  tasks: TaskRequest[],
+  actionableTasks: TaskRequest[],
+  allTasks: TaskRequest[],
   active: Map<string, Promise<void>>
 ): TaskRequest[] {
-  return tasks.filter(task => {
+  return actionableTasks.filter(task => {
     if (active.has(task.id)) return false;
-    if (!this.isActionable(task)) return false;  // skip intervention statuses
     return task.dependsOn.every(depId => {
-      if (active.has(depId)) return false;   // dep still running → wait
-      const dep = tasks.find(t => t.id === depId);
-      return !dep || dep.status === "Done";  // Done or not in list = satisfied
+      if (active.has(depId)) return false;       // dep running in this process → wait
+      const dep = allTasks.find(t => t.id === depId);
+      if (!dep) return true;                      // dep not found at all = satisfied (or deleted)
+      return dep.status === TaskStatus.Done;       // only Done = satisfied
     });
   });
 }
 ```
 
+The `processQueue` loop calls this as:
+
+```typescript
+const actionable = await this.loadActionableTasks();  // "Needs *" stage statuses only
+const all = await this.loadAllTasks();                 // every status
+const eligible = this.filterEligible(actionable, all, active);
+```
+
 Four states a dependency can be in:
 - **`Done`** — satisfied, proceed
-- **`In Progress` (any stage)** — in `active` map → `false` (wait)
-- **`Needs *` (any stage)** — still in task list, not yet Done → `false` (wait)
-- **Intervention** (`Blocked`, `Needs Human *`) — not in active, not Done → `false` (wait, human must unblock)
+- **`* In Progress` (any stage)** — found in `allTasks` with status != Done → `false` (wait)
+- **`Needs *` (any stage)** — found in `allTasks` with status != Done → `false` (wait)
+- **Intervention** (`Blocked`, `Needs Human *`) — found in `allTasks` with status != Done → `false` (wait, human must unblock)
+- **Not found** — task deleted or never existed → `true` (treat as satisfied)
 
 No variant-specific logic needed — dependencies already keep chains ordered, and independent variant chains naturally parallelize.
 
 ### `isTerminal(task)` — Detect Chain-End Tickets (NEW)
 
-A ticket is terminal if no other **Backlog or In Progress** ticket depends on it:
+A ticket is terminal if no other **non-Done** ticket depends on it. With the stage-aware model, "non-Done" means any status that isn't `Done` — including all `Needs *`, all `* In Progress`, and all intervention statuses:
 
 ```typescript
 private async isTerminal(task: TaskRequest): Promise<boolean> {
@@ -439,10 +452,12 @@ private async isTerminal(task: TaskRequest): Promise<boolean> {
   return !allTasks.some(t =>
     t.id !== task.id &&
     t.dependsOn.includes(task.id) &&
-    ["Backlog", "In Progress"].includes(t.status)
+    t.status !== TaskStatus.Done
   );
 }
 ```
+
+> **Why `!== Done` instead of a whitelist**: With 16+ statuses in the `TaskStatus` enum, checking against a whitelist is fragile. The only status that means "this ticket no longer needs its dependency's branch" is `Done`. Everything else — `Needs Research`, `Plan In Progress`, `Blocked`, `Needs Human Decision`, etc. — means the dependency chain is still active.
 
 This determines:
 - **Terminal**: Create PR, attempt merge to main
@@ -736,9 +751,12 @@ private filterEligible(
 }
 ```
 
-### `loadBacklogTasks` → `loadActionableTasks`
+### Two Task Loaders
 
-Rename and broaden: instead of loading only `status: Needs Research`, load all tasks in any `Needs *` stage status (excluding intervention statuses). This lets the orchestrator pick up tickets that have advanced through stages.
+- **`loadActionableTasks()`** — Returns tasks in `Needs *` stage statuses (excluding intervention statuses). These are candidates for dispatch.
+- **`loadAllTasks()`** — Returns tasks in **every** status. Used by `filterEligible()` for dependency checks (must see `In Progress` and intervention statuses) and by `isTerminal()` (must see non-Done dependents).
+
+Both are needed because the dispatch list and the dependency check have different scope requirements. Using only `loadActionableTasks` for dependency checks would miss `In Progress` and intervention statuses, causing premature dispatch after process restart.
 
 ## Changes Required for Variant Support (vs. previous plan)
 
@@ -783,28 +801,56 @@ AGI-10: Dashboard UI           (depends_on: [AGI-9], group: dashboard-v2,
                                 variant_hint: "Dense table layout, information-rich")
 ```
 
-Orchestrator execution:
+Orchestrator execution (assuming all tickets start at `Needs Plan` — Spec Agent judged them well-specified):
 
 ```
-t=0   AGI-5 + AGI-8 eligible (no deps) → dispatch both in parallel
-        AGI-5 → creates feat/dashboard-v1 branch, commits auth, pushes
-        AGI-8 → creates feat/dashboard-v2 branch, commits auth, pushes
-      Both are non-terminal (AGI-6 depends on AGI-5, AGI-9 depends on AGI-8)
-      → no PR, no merge
+t=0   AGI-5 (Needs Plan) + AGI-8 (Needs Plan) eligible (no deps)
+        → dispatch both in parallel, each gets Plan stage prompt
+        → Worker A: AGI-5 Plan In Progress → outputs next_status: "Needs Implement"
+        → Worker B: AGI-8 Plan In Progress → outputs next_status: "Needs Implement"
 
-t=1   AGI-5 Done → AGI-6 eligible. AGI-8 Done → AGI-9 eligible.
-        AGI-6 → checks out feat/dashboard-v1 (has auth commits), adds API, pushes
-        AGI-9 → checks out feat/dashboard-v2 (has auth commits), adds API, pushes
-      Both non-terminal → no PR, no merge
+t=1   AGI-5 (Needs Implement) + AGI-8 (Needs Implement) eligible again
+        → dispatch both in parallel, each gets Implement stage prompt + Daytona sandbox
+        → Worker C: AGI-5 creates feat/dashboard-v1 branch, commits auth, pushes
+           → outputs next_status: "Needs Validate"
+        → Worker D: AGI-8 creates feat/dashboard-v2 branch, commits auth, pushes
+           → outputs next_status: "Needs Validate"
 
-t=2   AGI-6 Done → AGI-7 eligible. AGI-9 Done → AGI-10 eligible.
-        AGI-7 → checks out feat/dashboard-v1, adds UI (card layout), pushes
-        AGI-10 → checks out feat/dashboard-v2, adds UI (table layout), pushes
-      Both are TERMINAL (nothing depends on them)
-      → AGI-7 creates PR for feat/dashboard-v1
-      → AGI-10 creates PR for feat/dashboard-v2
-      → Orchestrator merges whichever the user approves
+t=2   AGI-5 (Needs Validate) + AGI-8 (Needs Validate) eligible
+        → dispatch both, Validate stage prompt
+        → Worker E: AGI-5 validates → next_status: "Done"
+           → isTerminal? No (AGI-6 depends on AGI-5, status != Done) → no PR, no merge
+        → Worker F: AGI-8 validates → next_status: "Done"
+           → isTerminal? No (AGI-9 depends on AGI-8) → no PR, no merge
+
+t=3   AGI-5 Done → AGI-6 (Needs Plan) eligible. AGI-8 Done → AGI-9 (Needs Plan) eligible.
+        → dispatch both for Plan stage
+        ... (same cycle: Plan → Implement → Validate)
+
+t=4   AGI-6 (Needs Implement): checks out feat/dashboard-v1 (has auth commits), adds API, pushes
+      AGI-9 (Needs Implement): checks out feat/dashboard-v2 (has auth commits), adds API, pushes
+
+t=5   AGI-6 validates → Done. AGI-9 validates → Done.
+        → isTerminal? No (AGI-7 depends on AGI-6, AGI-10 depends on AGI-9)
+
+t=6   AGI-7 (Needs Plan) + AGI-10 (Needs Plan) eligible
+        ... Plan → Implement → Validate cycle
+
+t=7   AGI-7 Implement: checks out feat/dashboard-v1, adds UI (card layout), pushes
+      AGI-10 Implement: checks out feat/dashboard-v2, adds UI (table layout), pushes
+
+t=8   AGI-7 validates → Done. AGI-10 validates → Done.
+        → isTerminal? YES (nothing depends on AGI-7 or AGI-10 with status != Done)
+        → AGI-7 creates PR for feat/dashboard-v1
+        → AGI-10 creates PR for feat/dashboard-v2
+        → Orchestrator merges whichever the user approves
 ```
+
+Key observations:
+- **Dependencies block on `Done`, not on stage completion** — AGI-6 waits until AGI-5 reaches `Done`, not just until AGI-5 finishes one stage
+- **Group branch accumulates across tickets** — AGI-6's Implement stage checks out `feat/dashboard-v1` which already has AGI-5's commits
+- **Variant chains are fully independent** — dashboard-v1 and dashboard-v2 never interact
+- **`isTerminal` uses `!== Done`** — correctly handles all 16+ statuses without a fragile whitelist
 
 User gets 2 PRs to compare side-by-side.
 
