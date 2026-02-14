@@ -1,0 +1,12 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+I'm going to submit @IMPLEMENTATION_PLAN.md as a Linear Ticket to Horizon Agent, check the comment at the top that instructs Horizon to create sub-issues for judicious concurrency, especially because the plan is multi-phased and has many core changes required.
+
+### Prompt 2
+
+update
+
