@@ -5,22 +5,24 @@ Please decompose this into sub-issues for judicious parallel execution where pos
 
 Sub-issues with explicit dependencies:
 1. ClaudeSpawner (Phase 2)           — depends_on: []
-2. SpecAgent (Phase 1)               — depends_on: [1]
+2. PromptLoader                      — depends_on: []
 3. TaskStatus enum + helpers         — depends_on: []
-4. Orchestrator refactor (Phase 3)   — depends_on: [3]
-5. Test-Writer (Phase 5)             — depends_on: [4]
-6. Entry Point (Phase 4)             — depends_on: [2, 4]
-7. Prompt adaptations (agent2-worker*.md) — depends_on: []
+4. SpecAgent (Phase 1)               — depends_on: [1, 2]
+5. Orchestrator refactor (Phase 3)   — depends_on: [2, 3]
+6. Test-Writer (Phase 5)             — depends_on: [5]
+7. Entry Point (Phase 4)             — depends_on: [4, 5]
+8. Prompt adaptations (agent2-worker*.md) — depends_on: []
 
 Execution waves:
-  Wave 1: #1 (ClaudeSpawner), #3 (TaskStatus), #7 (Prompt adaptations)
-  Wave 2: #2 (SpecAgent), #4 (Orchestrator)  — #2 needs #1, #4 needs #3
-  Wave 3: #5 (Test-Writer), #6 (Entry Point) — #5 needs #4, #6 needs #2+#4
+  Wave 1: #1 (ClaudeSpawner), #2 (PromptLoader), #3 (TaskStatus), #8 (Prompt adaptations)
+  Wave 2: #4 (SpecAgent), #5 (Orchestrator)  — #4 needs #1+#2, #5 needs #2+#3
+  Wave 3: #6 (Test-Writer), #7 (Entry Point) — #6 needs #5, #7 needs #4+#5
 
 Notes:
 - Phase 3 (Orchestrator) is the most complex and touches many files
-- #7 is pure markdown edits with no code dependencies — safe for wave 1
-- #2 cannot be tested without #1 (SpecAgent uses ClaudeSpawner)
+- #8 is pure markdown edits with no code dependencies — safe for wave 1
+- #4 cannot be tested without #1 (SpecAgent uses ClaudeSpawner)
+- Merge agent is part of #5 (Orchestrator) — uses merge-auto.md fragment via PromptLoader
 -->
 
 # Plan: Agent Pipeline Enhancement in Napoli-Matcha project
@@ -401,17 +403,12 @@ async processQueue(): Promise<void> {
       const stagePrompt = this.stagePromptMap[task.status];
       if (!stagePrompt) continue;
 
-      // Transition to "In Progress" for this stage
-      await this.updateTaskStatus(task, this.inProgressStatus(task.status));
       const promise = this.dispatchStage(task, stagePrompt).then(async (result) => {
-        // Worker returns next_status in WORK_RESULT
+        // dispatchStage handles: stage → test-writer → merge agent (if terminal)
+        // merge_status in result determines final status:
+        //   success → Done, pr_created → Awaiting Merge, blocked → Blocked
         await this.writeResults(task, result);
         await this.updateTaskStatus(task, result.nextStatus);
-        if (result.nextStatus === "Done" || result.nextStatus === "Awaiting Merge") {
-          if (await this.isTerminal(task)) {
-            await this.tryMerge(task);
-          }
-        }
         active.delete(task.id);
       });
       active.set(task.id, promise);
@@ -440,7 +437,9 @@ Each stage is a **completely independent worker invocation**. There is no sessio
 This means:
 - Workers are **stateless** — all context comes from the ticket MD file + repo state
 - Multiple tickets in different stages can run in parallel across different workers
-- A worker crash doesn't lose progress — the ticket stays at its last `In Progress` status and can be retried
+- A worker crash doesn't lose progress — the ticket stays at its last `In Progress` status
+
+**Crash recovery**: If a worker fails (exit code != 0 or no parseable WORK_RESULT), the orchestrator **retries once** by re-dispatching the same stage. If the retry also fails, the ticket is set to `Blocked` and logged for human attention. The human can investigate, fix the issue, and manually reset the status to the `Needs *` state to retry. No timeout is enforced — Daytona sandbox lifetime limits apply.
 
 ### Spec Agent Sets Initial Stage
 
@@ -534,6 +533,18 @@ private branchName(task: TaskRequest): string {
 }
 ```
 
+### Agent Runner Pattern
+
+`runWorkerAgent()`, `runTestWriterAgent()`, and `runMergeAgent()` all follow the same pattern inherited from the existing `executeClaudeCommand()`:
+
+1. Open a PTY session in the Daytona sandbox via the SDK
+2. Invoke `claude -p '<prompt>' --dangerously-skip-permissions --output-format=stream-json --model <model> --verbose`
+3. Stream stdout line-by-line, parse JSON events, log to file
+4. Extract structured output (WORK_RESULT / TEST_RESULT) from the `result` event
+5. Return parsed result
+
+The only difference between the three is which prompt they receive and which output block they parse.
+
 ### `dispatchStage(task, stagePrompt)` — Stage-Aware Sandbox Logic (renamed from `executeWorker`)
 
 Each invocation handles **one stage**. The orchestrator re-dispatches the ticket for subsequent stages based on `next_status` in the WORK_RESULT.
@@ -541,12 +552,18 @@ Each invocation handles **one stage**. The orchestrator re-dispatches the ticket
 Key behaviors:
 1. **Stage prompt** selected from `stagePromptMap` based on current `task.status`
 2. **Branch name** passed to worker prompt uses `branchName(task)`
-3. **Worker prompt includes `isTerminal` flag** so the worker knows whether to create a PR (only relevant for validate/oneshot stages)
-4. **For grouped non-first tickets**: The sandbox clones the repo, then checks out the existing group branch (which has prior chain commits from upstream dependencies)
-5. **`variant_hint`** included in worker prompt when present
-6. Returns parsed WORK_RESULT including `nextStatus` field
-7. **Research stage** decides the workflow: returns `next_status: "Needs Specification"` or `"Needs Plan"` (staged) or `"Needs Oneshot"` (fast-track)
-8. **Sandboxes**: All worker stages run in Daytona sandboxes. This keeps the orchestrator lightweight (pure polling/dispatch) and avoids local resource contention. Only the Spec Agent (Phase 1, separate entry point) runs locally via ClaudeSpawner.
+3. **Sandbox setup is orchestrator-driven** (programmatic, before worker starts):
+   - `createSandbox(task)` clones the repo via Daytona SDK
+   - Checks out `branchName(task)` if it exists on remote (grouped non-first tickets inherit prior chain commits), otherwise creates the branch
+   - Runs `gh auth setup-git` for push access
+   - Worker sees a ready-to-go working directory on the correct branch
+4. **`variant_hint`** included in worker prompt when present
+5. Returns parsed WORK_RESULT including `nextStatus` field
+6. **Research stage** decides the workflow: returns `next_status: "Needs Specification"` or `"Needs Plan"` (staged) or `"Needs Oneshot"` (fast-track)
+7. **Sandboxes**: All worker stages run in Daytona sandboxes. This keeps the orchestrator lightweight (pure polling/dispatch) and avoids local resource contention. Only the Spec Agent (Phase 1, separate entry point) runs locally via ClaudeSpawner.
+8. **Post-stage subagents** (same sandbox, before teardown):
+   - **Test-writer**: Runs after code-producing stages (Implement, Oneshot, Validate). Writes and commits tests.
+   - **Merge agent**: Runs after test-writer for **terminal tickets only**. Uses `merge-auto.md` rubric to decide direct merge vs PR. Outputs `merge_status`.
 
 ### `writeResults(task, result)` — Update MD File
 
@@ -566,27 +583,22 @@ Parses WORK_RESULT from agent output, **appends** a Results section to the MD bo
 - PR: https://github.com/user/repo/pull/43  (only if terminal)
 ```
 
-### Sequential Merge Step — Terminal Tickets Only (CHANGED)
+### Merge Agent — Terminal Tickets Only (CHANGED)
 
-Previous plan merged after every ticket. Now merge only when `isTerminal(task)`:
+Merging is handled by a **dedicated merge subagent** that runs in the same sandbox as the worker, after the test-writer, for terminal tickets only. The orchestrator does **not** run git commands — the merge agent does.
 
-```typescript
-private async tryMerge(task: TaskRequest): Promise<boolean> {
-  const branch = this.branchName(task);
-  try {
-    execSync(
-      `git fetch origin && git checkout ${branch} && git rebase main` +
-      ` && git checkout main && git merge ${branch}`
-    );
-    return true;
-  } catch {
-    await this.updateTaskStatus(task, "Blocked");
-    return false;
-  }
-}
-```
+The merge agent:
+1. Runs in the same sandbox (has full repo state, branch, test results)
+2. Uses the `merge-auto.md` rubric to decide: direct merge vs PR
+3. Executes `git merge --no-ff` or `gh pr create` accordingly
+4. Outputs `merge_status` in WORK_RESULT: `success`, `pr_created`, or `blocked`
 
-For non-terminal grouped tickets: the worker just pushes to the shared group branch. The next ticket in the chain picks up where it left off.
+The orchestrator maps `merge_status` to the final ticket status:
+- `success` → `Done`
+- `pr_created` → `Awaiting Merge`
+- `blocked` → `Blocked` (merge conflict, orchestrator logs for human attention)
+
+For non-terminal grouped tickets: the worker just pushes to the shared group branch. No merge agent runs. The next ticket in the chain picks up where it left off.
 
 ---
 
@@ -613,6 +625,82 @@ Usage:
 - `npx tsx src/index.ts spec "Add user authentication"` → Spec Agent
 - `npx tsx src/index.ts spec "Build dashboard, give me 2 versions"` → Spec Agent with variants
 - `npx tsx src/index.ts` → Orchestrator loop
+
+---
+
+## Phase 5: Test-Writer Subagent (deterministic pipeline step)
+
+### Purpose
+
+Worker stages that produce code (Implement, Oneshot, Validate) are followed by a **test-writer step** in the same sandbox. This is not optional — it is a deterministic part of the pipeline that produces tests scoped to the work just completed. Research, Specification, and Plan stages do not trigger the test-writer since they produce analysis and plans, not code.
+
+### Two-Tier Testing Strategy
+
+| Ticket type | Unit tests | Integration tests |
+|-------------|-----------|-------------------|
+| **Non-terminal** (has downstream dependents) | Yes — cover all new/changed public methods and non-trivial private logic | No |
+| **Terminal** (end of chain) | Yes | Yes — cover the full variant/dependency chain's interactions with each other and with pre-existing repo code |
+
+### Execution Flow
+
+The test-writer runs **inside `dispatchStage()`** (see Phase 3) for code-producing stages, after the worker agent finishes but before the merge agent and sandbox teardown:
+
+```
+dispatchStage(task, stagePrompt):
+  1. Create Daytona sandbox, checkout branch
+  2. Worker agent runs stage prompt, commits, pushes
+  3. If stage is Implement, Oneshot, or Validate:
+     a. Test-writer agent runs in same sandbox
+     b. Reads the git diff (all commits on this branch vs main)
+     c. Reads the ticket description + acceptance criteria
+     d. If terminal: also reads all tickets in the group chain for integration context
+     e. Writes test files to tests/
+     f. Runs `npm test` to verify all tests pass
+     g. Commits test files, pushes to same branch
+  4. If terminal: merge agent runs (see Merge Agent section in Phase 3)
+  5. Return combined result (stage + test summary + merge status)
+```
+
+### Test-Writer Prompt (`prompts/agent2-worker-test.md` — NEW)
+
+```
+You are a Test-Writer Agent. You have just received a completed implementation in this
+sandbox. Your job is to write tests for the code that was changed.
+
+## Context
+
+**Ticket**: {{TICKET_CONTEXT}}
+**Branch diff vs main**: {{BRANCH_DIFF}}
+**Is terminal ticket**: {{IS_TERMINAL}}
+{{CHAIN_TICKETS}}
+
+## Rules
+
+1. Use `vitest` as the test framework. Place tests in `tests/<feature>.test.ts`.
+2. Follow existing test patterns in the repo (see tests/ for examples).
+3. Write **unit tests** for:
+   - Every new public method on any class
+   - Non-trivial private logic (parsing, state transitions, validation)
+   - Both happy path and at least one meaningful failure case per method
+   - Use descriptive test names: "returns 401 for expired JWT tokens"
+4. If this is a **terminal ticket**, also write **integration tests** that:
+   - Exercise the full chain of features built across this variant group
+   - Test interactions between the new code and pre-existing repo code
+   - Cover end-to-end flows from the user's perspective where applicable
+5. Mock external dependencies (network, sandboxes, Claude CLI) — never call real services.
+6. Run `npm test` after writing. If tests fail, fix them before committing.
+7. Commit all test files with message: "test: add tests for {ticket title}"
+
+## Output
+
+TEST_RESULT
+---
+files_created: [list of test file paths]
+unit_tests: {count}
+integration_tests: {count}
+all_passing: {true/false}
+---
+```
 
 ---
 
@@ -730,11 +818,20 @@ async dispatchStage(task: TaskRequest, stagePrompt: string): Promise<StageResult
     testResult = await this.runTestWriterAgent(sandbox, this.buildTestWriterPrompt(task, isTerminal));
   }
 
-  return { stage: stageResult, tests: testResult };
+  // Step 3: Merge agent (same sandbox, only for terminal code-producing stages)
+  let mergeResult: MergeResult | undefined;
+  if (this.codeProducingStages.has(originalStatus) && await this.isTerminal(task)) {
+    const mergePrompt = this.buildMergePrompt(task);  // loads merge-auto.md fragment
+    mergeResult = await this.runMergeAgent(sandbox, mergePrompt);
+  }
+
+  return { stage: stageResult, tests: testResult, merge: mergeResult };
 }
 ```
 
 Key change from the previous plan: **each worker invocation handles one stage**, not the entire pipeline. The orchestrator re-dispatches the same ticket through successive stages based on the `nextStatus` returned in WORK_RESULT.
+
+For terminal tickets, the `merge` field in the result determines final status: `success` → `Done`, `pr_created` → `Awaiting Merge`, `blocked` → `Blocked`.
 
 ### WORK_RESULT Stage Output
 
@@ -891,20 +988,57 @@ User gets 2 PRs to compare side-by-side.
 
 ---
 
+## Prompt Loading (`src/lib/PromptLoader.ts` — NEW)
+
+A simple `loadPrompt(name)` function reads `.md` files from `prompts/` and fills `{{variable}}` placeholders via string replacement:
+
+```typescript
+function loadPrompt(name: string): string {
+  return fs.readFileSync(path.join("prompts", name), "utf-8");
+}
+
+function fillTemplate(template: string, vars: Record<string, string>): string {
+  return Object.entries(vars).reduce(
+    (s, [key, val]) => s.replaceAll(`{{${key}}}`, val), template
+  );
+}
+```
+
+Each `build*Prompt()` method calls `loadPrompt()` then `fillTemplate()` with the relevant context:
+
+```typescript
+// Example: buildTestWriterPrompt
+const template = loadPrompt("agent2-worker-test.md");
+return fillTemplate(template, {
+  TICKET_CONTEXT: `${task.title}\n${task.description}`,
+  BRANCH_DIFF: execSync(`git diff main...HEAD`).toString(),
+  IS_TERMINAL: String(isTerminal),
+  CHAIN_TICKETS: isTerminal ? this.loadChainTickets(task) : "",
+});
+```
+
+For the merge agent, `buildMergePrompt()` loads the appropriate merge fragment (`merge-auto.md` by default) and fills in the branch name, ticket context, and test results.
+
+---
+
 ## Files
 
 | File | Change |
 |------|--------|
 | `src/lib/TaskStatus.ts` | **New** — `TaskStatus` enum + helper functions (`isActionable()`, `inProgressStatus()`, `stagePromptMap`) |
+| `src/lib/PromptLoader.ts` | **New** — `loadPrompt()` + `fillTemplate()` for `{{variable}}` replacement in prompt `.md` files |
 | `src/lib/SpecAgent.ts` | **New** — Spec quality gate + clarification loop + variant chain duplication + ticket writer |
 | `src/lib/ClaudeSpawner.ts` | **New** — Local Claude CLI spawner (simplified from Horizon's `claude.ts`) |
-| `src/lib/SandboxQueueProcessor.ts` | Refactor to continuous loop, **stage-aware dispatch** (one stage per invocation), `stagePromptMap` routing, parallel dispatch, group-aware branching, terminal-only merge, `isTerminal()`, `branchName()`, `loadAllTasks()`, `filterEligible()` with `isActionable()` guard, `dispatchStage()` with conditional test-writer, result writing with `nextStatus` parsing |
+| `src/lib/SandboxQueueProcessor.ts` | Refactor to continuous loop, **stage-aware dispatch** (one stage per invocation), `stagePromptMap` routing, parallel dispatch, group-aware branching, `isTerminal()`, `branchName()`, `loadAllTasks()`, `filterEligible()` with `isActionable()` guard, `dispatchStage()` with conditional test-writer + merge agent, `buildMergePrompt()`, `runMergeAgent()`, result writing with `nextStatus` + `merge_status` parsing |
 | `src/index.ts` | Two-mode entry: `spec` command vs orchestrator loop |
 | `prompts/agent0-spec.md` | **New** — Spec Agent prompt (5 quality criteria, clarification loop, variant detection) |
 | `prompts/agent2-worker-test.md` | **New** — Test-Writer Agent prompt (unit + integration test generation) |
 | `prompts/agent1-linear-reader.md` | **Removed** — Queue reading logic absorbed into TypeScript orchestrator (`loadAllTasks()`, `filterEligible()`) |
 | `prompts/agent3-linear-writer.md` | **Removed** — Result writing logic absorbed into TypeScript orchestrator (`writeResults()`, `updateTaskStatus()`) |
 | `prompts/agent2-worker.md` | **Minor** — Update file path references from `.horizon/prompts/` to `prompts/`, update status references to use `TaskStatus` enum values |
+| `prompts/fragments/merge-auto.md` | **Existing** — Used by merge agent as the decision rubric (auto mode). Already ported from Horizon. |
+| `prompts/fragments/merge-direct.md` | **Existing** — Direct merge instructions. Available if merge mode is overridden to `merge`. |
+| `prompts/fragments/merge-pr.md` | **Existing** — PR-only instructions. Available if merge mode is overridden to `pr`. |
 
 ---
 
@@ -925,138 +1059,3 @@ User gets 2 PRs to compare side-by-side.
    - Group branch accumulates commits across chain
 9. **Existing tests**: `npm test` passes
 
----
-
-## Phase 5: Test-Writer Subagent (deterministic pipeline step)
-
-### Purpose
-
-Worker stages that produce code (Implement, Oneshot, Validate) are followed by a **test-writer step** in the same sandbox. This is not optional — it is a deterministic part of the pipeline that produces tests scoped to the work just completed. Research, Specification, and Plan stages do not trigger the test-writer since they produce analysis and plans, not code.
-
-### Two-Tier Testing Strategy
-
-| Ticket type | Unit tests | Integration tests |
-|-------------|-----------|-------------------|
-| **Non-terminal** (has downstream dependents) | Yes — cover all new/changed public methods and non-trivial private logic | No |
-| **Terminal** (end of chain) | Yes | Yes — cover the full variant/dependency chain's interactions with each other and with pre-existing repo code |
-
-### Execution Flow
-
-The test-writer runs **inside `dispatchStage()`** for code-producing stages (Implement, Oneshot, Validate), after the worker agent finishes but before the sandbox is torn down:
-
-```
-dispatchStage(task, stagePrompt):
-  1. Create Daytona sandbox
-  2. Worker agent runs stage prompt, commits, pushes
-  3. If stage is Implement, Oneshot, or Validate:
-     a. Test-writer agent runs in same sandbox
-     b. Reads the git diff (all commits on this branch vs main)
-     c. Reads the ticket description + acceptance criteria
-     d. If terminal: also reads all tickets in the group chain for integration context
-     e. Writes test files to tests/
-     f. Runs `npm test` to verify all tests pass
-     g. Commits test files, pushes to same branch
-  4. Return combined WORK_RESULT (stage output + test summary if applicable)
-```
-
-### Test-Writer Prompt (`prompts/agent2-worker-test.md` — NEW)
-
-```
-You are a Test-Writer Agent. You have just received a completed implementation in this
-sandbox. Your job is to write tests for the code that was changed.
-
-## Context
-
-**Ticket**: {ticket title + description + acceptance criteria}
-**Branch diff vs main**: {git diff main...HEAD}
-**Is terminal ticket**: {true/false}
-{If terminal and grouped: **Full chain tickets**: {all ticket descriptions in this group}}
-
-## Rules
-
-1. Use `vitest` as the test framework. Place tests in `tests/<feature>.test.ts`.
-2. Follow existing test patterns in the repo (see tests/ for examples).
-3. Write **unit tests** for:
-   - Every new public method on any class
-   - Non-trivial private logic (parsing, state transitions, validation)
-   - Both happy path and at least one meaningful failure case per method
-   - Use descriptive test names: "returns 401 for expired JWT tokens"
-4. If this is a **terminal ticket**, also write **integration tests** that:
-   - Exercise the full chain of features built across this variant group
-   - Test interactions between the new code and pre-existing repo code
-   - Cover end-to-end flows from the user's perspective where applicable
-5. Mock external dependencies (network, sandboxes, Claude CLI) — never call real services.
-6. Run `npm test` after writing. If tests fail, fix them before committing.
-7. Commit all test files with message: "test: add tests for {ticket title}"
-
-## Output
-
-TEST_RESULT
----
-files_created: [list of test file paths]
-unit_tests: {count}
-integration_tests: {count}
-all_passing: {true/false}
----
-```
-
-### Orchestrator Integration
-
-The `dispatchStage()` method conditionally runs the test-writer after code-producing stages:
-
-```typescript
-private readonly codeProducingStages = new Set([
-  "Needs Implement", "Needs Oneshot", "Needs Validate",
-]);
-
-private async dispatchStage(task: TaskRequest, stagePrompt: string): Promise<StageResult> {
-  const sandbox = await this.createSandbox(task);
-  const originalStatus = task.status;  // capture before mutation
-
-  // Step 1: Transition to In Progress, then run the stage prompt
-  await this.updateTaskStatus(task, this.inProgressStatus(task.status));
-  const stageResult = await this.runWorkerAgent(sandbox, task, stagePrompt);
-
-  // Step 2: Test-writer (same sandbox, only for code-producing stages)
-  let testResult: TestResult | undefined;
-  if (this.codeProducingStages.has(originalStatus)) {
-    const isTerminal = await this.isTerminal(task);
-    const testPrompt = this.buildTestWriterPrompt(task, isTerminal);
-    testResult = await this.runTestWriterAgent(sandbox, testPrompt);
-  }
-
-  return { stage: stageResult, tests: testResult };
-}
-```
-
-### `writeResults` Update
-
-The result block now includes test metadata:
-
-```markdown
-## Results
-
-**Completed**: 2026-02-14T12:00:00Z
-**Branch**: feat/dashboard-v2
-
-### Summary
-{parsed from WORK_RESULT}
-
-### Tests
-- Unit tests: 8
-- Integration tests: 3 (terminal only)
-- Files: tests/auth_middleware.test.ts, tests/dashboard_api.test.ts
-- All passing: true
-
-### Artifacts
-- Commit: abc1234 (implementation)
-- Commit: def5678 (tests)
-- PR: https://github.com/user/repo/pull/43 (only if terminal)
-```
-
-### Files Update
-
-| File | Change |
-|------|--------|
-| `src/lib/SandboxQueueProcessor.ts` | Add `buildTestWriterPrompt()`, `runTestWriterAgent()`, `codeProducingStages` set, update `dispatchStage()` to conditionally run test-writer after Implement/Oneshot/Validate, update `writeResults()` to include test metadata |
-| `prompts/agent2-worker-test.md` | **New** — Test-Writer prompt with template variables for ticket context, diff, and terminal flag |
