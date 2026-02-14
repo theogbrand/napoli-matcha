@@ -1,3 +1,28 @@
+<!--
+HORIZON AGENT INSTRUCTIONS:
+This plan contains 5 major phases with significant new components and core refactoring.
+Please decompose this into sub-issues for judicious parallel execution where possible.
+
+Sub-issues with explicit dependencies:
+1. ClaudeSpawner (Phase 2)           — depends_on: []
+2. SpecAgent (Phase 1)               — depends_on: [1]
+3. TaskStatus enum + helpers         — depends_on: []
+4. Orchestrator refactor (Phase 3)   — depends_on: [3]
+5. Test-Writer (Phase 5)             — depends_on: [4]
+6. Entry Point (Phase 4)             — depends_on: [2, 4]
+7. Prompt adaptations (agent2-worker*.md) — depends_on: []
+
+Execution waves:
+  Wave 1: #1 (ClaudeSpawner), #3 (TaskStatus), #7 (Prompt adaptations)
+  Wave 2: #2 (SpecAgent), #4 (Orchestrator)  — #2 needs #1, #4 needs #3
+  Wave 3: #5 (Test-Writer), #6 (Entry Point) — #5 needs #4, #6 needs #2+#4
+
+Notes:
+- Phase 3 (Orchestrator) is the most complex and touches many files
+- #7 is pure markdown edits with no code dependencies — safe for wave 1
+- #2 cannot be tested without #1 (SpecAgent uses ClaudeSpawner)
+-->
+
 # Plan: Agent Pipeline Enhancement in Napoli-Matcha project
 
 ---
@@ -17,12 +42,12 @@
 >
 > | Concern | Horizon | Napoli-Matcha |
 > |---------|---------|---------------|
-> | **Ticket storage** | Linear (via MCP tools: `mcp__linear__list_issues`, `mcp__linear__get_issue`, etc.) | Local MD files in `request_queue/` with YAML frontmatter |
+> | **Ticket storage** | Linear (via MCP tools: `mcp__linear__list_issues`, `mcp__linear__get_issue`, etc.) | Local MD files in `feature_requests/` with YAML frontmatter |
 > | **Status updates** | Linear API (`mcp__linear__update_issue`) | Update YAML `status:` field in the MD file |
 > | **Result posting** | Linear comments (`mcp__linear__create_comment`) | Append results section to the MD file body |
-> | **Sub-issue creation** | Linear API (`mcp__linear__create_issue`) | Write new MD files to `request_queue/` |
-> | **Agent 1 (Reader)** | Queries Linear for issues in specific statuses | Reads `request_queue/*.md`, filters by `status: Needs Research` |
-> | **Agent 3 (Writer)** | Posts comments + updates Linear issue status | Updates MD frontmatter status + appends result sections |
+> | **Sub-issue creation** | Linear API (`mcp__linear__create_issue`) | Write new MD files to `feature_requests/` |
+> | **Agent 1 (Reader)** | Claude agent queries Linear for issues in specific statuses | **Absorbed into TypeScript orchestrator** — `loadAllTasks()` reads `feature_requests/**/AGI-*.md`, `filterEligible()` selects dispatch candidates |
+> | **Agent 3 (Writer)** | Claude agent posts comments + updates Linear issue status | **Absorbed into TypeScript orchestrator** — `writeResults()` updates MD frontmatter + appends result sections, `updateTaskStatus()` sets status |
 >
 > When implementing, **always check the Horizon equivalent first** for patterns, then adapt to local file I/O.
 
@@ -36,7 +61,7 @@ The `prompts/` directory contains agent prompts **ported from Horizon**. They fo
 
 | File | Horizon Role | Napoli Role | Adaptation Needed |
 |------|-------------|-------------|-------------------|
-| `agent1-linear-reader.md` | Reads tickets from Linear via MCP | **Queue Reader** — reads from `request_queue/*.md` | **HIGH** — Replace all `mcp__linear__*` calls with local file I/O. Keep multi-agent conflict/claim logic. |
+| `agent1-linear-reader.md` | Reads tickets from Linear via MCP | **Removed** — logic absorbed into TypeScript orchestrator (`loadAllTasks()`, `filterEligible()`) | **N/A** — No longer a Claude agent. Deterministic queue reading doesn't need LLM reasoning. |
 | `agent2-worker.md` | Stage router (dispatches to stage-specific prompts) | **Worker Router** — same role | **LOW** — Update file path references from `.horizon/prompts/` to `prompts/` |
 | `agent2-worker-oneshot.md` | Fast-track for simple tasks (~100 LOC) | Same | **NONE** — Direct port, fill `{{MERGE_INSTRUCTIONS}}` placeholder |
 | `agent2-worker-research.md` | Assess complexity, decide oneshot vs staged | Same | **NONE** — Direct port |
@@ -44,7 +69,7 @@ The `prompts/` directory contains agent prompts **ported from Horizon**. They fo
 | `agent2-worker-plan.md` | Break into implementation phases | Same | **NONE** — Direct port |
 | `agent2-worker-implement.md` | Execute phases, commit, push | Same | **NONE** — Direct port |
 | `agent2-worker-validate.md` | Run tests, verify success criteria | Same | **NONE** — Direct port, fill `{{MERGE_INSTRUCTIONS}}` placeholder |
-| `agent3-linear-writer.md` | Posts results to Linear, updates status | **Queue Writer** — updates MD files with results | **HIGH** — Remove all MCP calls, write results to MD files, handle sub-issue creation as new queue files |
+| `agent3-linear-writer.md` | Posts results to Linear, updates status | **Removed** — logic absorbed into TypeScript orchestrator (`writeResults()`, `updateTaskStatus()`) | **N/A** — No longer a Claude agent. WORK_RESULT parsing and MD file updates are deterministic. |
 | `fragments/merge-auto.md` | Decision rubric for merge strategy | Same | **NONE** — Pure git operations, no Linear deps |
 | `fragments/merge-direct.md` | Direct merge path | Same | **NONE** |
 | `fragments/merge-pr.md` | PR creation path | Same | **NONE** |
@@ -64,29 +89,30 @@ User request
   ▼
 agent0-spec.md (Spec Agent — LOCAL, via ClaudeSpawner)
   │ Clarification loop until spec meets 5 quality criteria
-  │ Writes tickets to request_queue/
+  │ Writes tickets to feature_requests/FR-{n}/
   ▼
-agent1-linear-reader.md (Queue Reader — IN SANDBOX, adapted for local queue)
-  │ Reads ticket from queue, claims it, outputs context for worker
+Orchestrator (TypeScript — replaces agent1/agent3)
+  │ loadAllTasks() reads feature_requests/**/AGI-*.md
+  │ filterEligible() selects dispatch candidates
+  │ Dispatches one stage per worker invocation
   ▼
 agent2-worker.md → agent2-worker-{stage}.md (Worker — IN SANDBOX)
   │ 6-stage pipeline: research → spec → plan → implement → validate
   │ (or oneshot fast-track)
   ▼
-agent2-worker-test.md (Test Writer — IN SAME SANDBOX, after worker)
+agent2-worker-test.md (Test Writer — IN SAME SANDBOX, after implement/validate/oneshot)
   │ Writes tests for the implementation, commits to same branch
   ▼
-agent3-linear-writer.md (Queue Writer — IN SANDBOX, adapted for local queue)
+Orchestrator (TypeScript)
   │ Parses WORK_RESULT, updates MD file with results + status
-  ▼
-Orchestrator decides: terminal? → PR + merge. Non-terminal? → push, next ticket.
+  │ terminal? → PR + merge. Non-terminal? → push, next ticket.
 ```
 
 ### Adaptation Guidelines for Horizon → Napoli Prompts
 
 When editing prompts that reference Horizon/Linear:
 
-1. **Replace `mcp__linear__*` tool calls** with instructions to read/write local MD files
+1. **Remove `mcp__linear__*` tool call references** — queue reading and result writing are now handled by the TypeScript orchestrator, not by Claude agents
 2. **Replace Linear status names** — drop the `∞` prefix but **keep the granular stage statuses**. See the **Task Status Model** section below for the full list.
 3. **Keep the WORK_RESULT format** — it's the interface between agents and is Linear-agnostic
 4. **Keep multi-agent conflict handling** — still relevant when multiple orchestrator instances run
@@ -107,11 +133,11 @@ Spec Agent (local Claude CLI, interactive clarification loop)
   ├─ Detects variant requests ("give me 2 versions")
   ├─ Decomposes into structured tickets with dependency graph
   ├─ If variants: duplicates full dependency chain per variant with independent IDs
-  └─ Writes tickets to request_queue/ as MD files (status: Needs Research)
+  └─ Writes tickets to feature_requests/FR-{n}/ as MD files (status per start_status judgment)
   │
   ▼
 Orchestrator (pure TypeScript, continuous loop)
-  ├─ Reads request_queue/, topological sort on depends_on
+  ├─ Reads feature_requests/**/AGI-*.md, topological sort on depends_on
   ├─ Dispatches eligible tasks to Workers (up to N parallel)
   ├─ On completion: parses WORK_RESULT, writes to MD
   ├─ Merge: only for terminal tickets (no downstream group deps)
@@ -254,12 +280,52 @@ private async promptHuman(questions: string[]): Promise<string> {
 
 ### Writing Tickets
 
-<!-- I need 2 IDs here, one to track the feature requests from the user, the other to track the tickets for the implementation; for ease of implementation, also create a dir "feature_requests_id" to store the feature request. If a feature request has variants requsted by the user, create a separate directory to store each "group" of tickets per variant -->
-After the spec is complete, writes each ticket as an MD file to `request_queue/`:
+The Spec Agent uses two ID schemes:
+
+- **`FR-{n}`** — Feature Request ID. Tracks the original user request. One per `spec` invocation.
+- **`AGI-{n}`** — Ticket ID. Individual implementation units decomposed from the feature request.
+
+After the spec is complete, the Spec Agent creates a directory structure under `feature_requests/`:
+
+```
+feature_requests/
+  FR-1/
+    request.md              # Original user request + clarification Q&A
+    dashboard-v1/           # Variant group subdirectory
+      AGI-5.md
+      AGI-6.md
+      AGI-7.md
+    dashboard-v2/           # Variant group subdirectory
+      AGI-8.md
+      AGI-9.md
+      AGI-10.md
+  FR-2/
+    request.md
+    AGI-11.md               # No group → lives directly in FR dir
+```
+
+**`request.md`** stores the original request and clarification history:
+
+```markdown
+---
+id: FR-1
+created: 2026-02-14T12:00:00Z
+---
+
+## Original Request
+Build a dashboard with auth, give me 2 versions to compare
+
+## Clarifications
+Q: What auth provider should be used?
+A: JWT with our existing user table
+```
+
+**Ticket MD files** use YAML frontmatter:
 
 ```markdown
 ---
 id: AGI-8
+feature_request: FR-1
 title: Add auth middleware
 description: >-
   Create Express middleware that validates JWT tokens on protected routes.
@@ -269,7 +335,6 @@ depends_on: []
 group: dashboard-v2
 variant_hint: >-
   Use a data-dense table layout. Prioritize information density over whitespace.
-number_of_sandboxes: 1
 status: Needs Plan
 ---
 ```
@@ -278,7 +343,7 @@ The `status` field is set by the Spec Agent based on its `start_status` judgment
 
 ### Integration with Existing ID Scheme
 
-Reads existing `request_queue/` files to find the current max `AGI-{n}` ID (reuses logic from `SandboxQueueProcessor.loadTasksFromQueue()`). New tickets start from `max + 1`.
+Reads existing `feature_requests/` to find the current max `FR-{n}` and `AGI-{n}` IDs. New IDs start from `max + 1`. The orchestrator globs `feature_requests/**/AGI-*.md` to discover all tickets.
 
 ---
 
@@ -322,9 +387,8 @@ async processQueue(): Promise<void> {
   const active = new Map<string, Promise<void>>();
 
   while (this.maxIterations === 0 || iteration < this.maxIterations) {
-    const actionable = await this.loadActionableTasks();  // "Needs *" stage statuses
-    const all = await this.loadAllTasks();                // every status
-    const eligible = this.filterEligible(actionable, all, active);
+    const allTasks = await this.loadAllTasks();  // every status
+    const eligible = this.filterEligible(allTasks, active);
 
     if (eligible.length === 0 && active.size === 0) {
       console.log(`No tasks. Sleeping ${this.pollIntervalSeconds}s...`);
@@ -403,18 +467,18 @@ The Spec Agent is in the best position to judge this because it has already done
 
 > **Note**: Tickets never start at `Needs Validate` — validation only makes sense after implementation has occurred.
 
-### `filterEligible(actionableTasks, allTasks, active)` — Dependency + Stage Resolution
+### `filterEligible(allTasks, active)` — Dependency + Stage Resolution
 
-**Important**: Dependency checks must run against **all tasks** (every status), not just the actionable ones. Otherwise, a dependency in `Research In Progress` (not a `Needs *` status, not in the in-memory `active` map after a restart) would be invisible and incorrectly treated as satisfied.
+Takes **all tasks** (every status) as a single list. The `isActionable()` guard inside handles narrowing to dispatch candidates. Dependency checks naturally see all statuses — including `* In Progress` and intervention statuses — preventing premature dispatch after process restart.
 
 ```typescript
 private filterEligible(
-  actionableTasks: TaskRequest[],
   allTasks: TaskRequest[],
   active: Map<string, Promise<void>>
 ): TaskRequest[] {
-  return actionableTasks.filter(task => {
+  return allTasks.filter(task => {
     if (active.has(task.id)) return false;
+    if (!this.isActionable(task)) return false;
     return task.dependsOn.every(depId => {
       if (active.has(depId)) return false;       // dep running in this process → wait
       const dep = allTasks.find(t => t.id === depId);
@@ -428,9 +492,8 @@ private filterEligible(
 The `processQueue` loop calls this as:
 
 ```typescript
-const actionable = await this.loadActionableTasks();  // "Needs *" stage statuses only
-const all = await this.loadAllTasks();                 // every status
-const eligible = this.filterEligible(actionable, all, active);
+const allTasks = await this.loadAllTasks();  // every status
+const eligible = this.filterEligible(allTasks, active);
 ```
 
 Four states a dependency can be in:
@@ -482,22 +545,14 @@ Key behaviors:
 4. **For grouped non-first tickets**: The sandbox clones the repo, then checks out the existing group branch (which has prior chain commits from upstream dependencies)
 5. **`variant_hint`** included in worker prompt when present
 6. Returns parsed WORK_RESULT including `nextStatus` field
-7. **Research stage** decides the workflow: returns `next_status: "Needs Specification"` or `"Needs Plan"` (staged) or transitions to oneshot
-8. **Sandboxes**: Research/Spec/Plan stages can run without a sandbox (local Claude). Implement/Validate/Oneshot stages require a Daytona sandbox.
+7. **Research stage** decides the workflow: returns `next_status: "Needs Specification"` or `"Needs Plan"` (staged) or `"Needs Oneshot"` (fast-track)
+8. **Sandboxes**: All worker stages run in Daytona sandboxes. This keeps the orchestrator lightweight (pure polling/dispatch) and avoids local resource contention. Only the Spec Agent (Phase 1, separate entry point) runs locally via ClaudeSpawner.
 
 ### `writeResults(task, result)` — Update MD File
 
-Parses WORK_RESULT from agent output, writes structured summary to MD body:
+Parses WORK_RESULT from agent output, **appends** a Results section to the MD body. Does **not** modify frontmatter — status updates are handled exclusively by `updateTaskStatus()`.
 
 ```markdown
----
-id: AGI-8
-title: Add auth middleware
-status: Done
-group: dashboard-v2
-...
----
-
 ## Results
 
 **Completed**: 2026-02-14T12:00:00Z
@@ -566,12 +621,12 @@ Usage:
 ```typescript
 interface TaskRequest {
   id: string;
+  featureRequest: string;    // "FR-1" — parent feature request
   file: string;
   filePath: string;
   title: string;
   description: string;
   repo: string;
-  numberOfSandboxes: number;
   dependsOn: string[];       // ["AGI-1", "AGI-2"]
   group?: string;            // "dashboard-v1" — shared branch for variant chain
   variantHint?: string;      // design direction for this variant
@@ -589,9 +644,6 @@ The worker pipeline uses **granular per-stage statuses** so the orchestrator kno
 
 ```typescript
 enum TaskStatus {
-  // Entry
-  Backlog              = "Backlog",
-
   // Stage: Research
   NeedsResearch        = "Needs Research",
   ResearchInProgress   = "Research In Progress",
@@ -613,6 +665,7 @@ enum TaskStatus {
   ValidateInProgress   = "Validate In Progress",
 
   // Stage: Oneshot (fast-track, decided during research)
+  NeedsOneshot         = "Needs Oneshot",
   OneshotInProgress    = "Oneshot In Progress",
 
   // Terminal
@@ -629,12 +682,9 @@ enum TaskStatus {
 ### Stage Transition Diagram
 
 ```
-Backlog
-  │
-  ▼
 Needs Research ──→ Research In Progress
   │
-  ├─ SIMPLE ──→ Oneshot In Progress ──→ Done / Awaiting Merge
+  ├─ SIMPLE ──→ Needs Oneshot ──→ Oneshot In Progress ──→ Done / Awaiting Merge
   │
   └─ COMPLEX ──┬──→ Needs Specification ──→ Specification In Progress ──→ Needs Plan
                │
@@ -663,15 +713,24 @@ private stagePromptMap: Record<string, string> = {
   "Needs Plan":            "agent2-worker-plan.md",
   "Needs Implement":       "agent2-worker-implement.md",
   "Needs Validate":        "agent2-worker-validate.md",
+  "Needs Oneshot":         "agent2-worker-oneshot.md",
 };
 
-async dispatchWorker(task: TaskRequest): Promise<void> {
-  const prompt = this.stagePromptMap[task.status];
-  if (!prompt) return; // not in a "Needs *" status — skip
+async dispatchStage(task: TaskRequest, stagePrompt: string): Promise<StageResult> {
+  const sandbox = await this.createSandbox(task);
+  const originalStatus = task.status;  // capture before mutation
 
-  await this.updateTaskStatus(task, task.status.replace("Needs", "").trim() + " In Progress");
-  const result = await this.runWorkerAgent(sandbox, task, prompt);
-  await this.updateTaskStatus(task, result.nextStatus);
+  await this.updateTaskStatus(task, this.inProgressStatus(task.status));
+  const stageResult = await this.runWorkerAgent(sandbox, task, stagePrompt);
+
+  // Conditionally run test-writer for code-producing stages
+  let testResult: TestResult | undefined;
+  if (this.codeProducingStages.has(originalStatus)) {
+    const isTerminal = await this.isTerminal(task);
+    testResult = await this.runTestWriterAgent(sandbox, this.buildTestWriterPrompt(task, isTerminal));
+  }
+
+  return { stage: stageResult, tests: testResult };
 }
 ```
 
@@ -687,7 +746,7 @@ WORK_RESULT
 success: true
 stage_completed: research
 workflow: staged          # or "oneshot"
-next_status: "Needs Specification"  # or "Needs Plan" if spec not needed
+next_status: "Needs Specification"  # or "Needs Plan" if spec not needed, or "Needs Oneshot" for fast-track
 ---
 ```
 
@@ -730,33 +789,9 @@ private isActionable(task: TaskRequest): boolean {
 
 Tickets in intervention statuses are **skipped by the orchestrator** until a human manually updates the status (e.g., back to `Needs Plan` after making a decision). The orchestrator logs them as requiring attention.
 
-### `filterEligible` Update
+### Single Task Loader
 
-The previous `filterEligible` only looked for `Backlog` tasks. Now it looks for any `Needs *` status (excluding intervention statuses) where dependencies are satisfied:
-
-```typescript
-private filterEligible(
-  tasks: TaskRequest[],
-  active: Map<string, Promise<void>>
-): TaskRequest[] {
-  return tasks.filter(task => {
-    if (active.has(task.id)) return false;
-    if (!this.isActionable(task)) return false;
-    return task.dependsOn.every(depId => {
-      if (active.has(depId)) return false;
-      const dep = tasks.find(t => t.id === depId);
-      return !dep || dep.status === "Done";
-    });
-  });
-}
-```
-
-### Two Task Loaders
-
-- **`loadActionableTasks()`** — Returns tasks in `Needs *` stage statuses (excluding intervention statuses). These are candidates for dispatch.
-- **`loadAllTasks()`** — Returns tasks in **every** status. Used by `filterEligible()` for dependency checks (must see `In Progress` and intervention statuses) and by `isTerminal()` (must see non-Done dependents).
-
-Both are needed because the dispatch list and the dependency check have different scope requirements. Using only `loadActionableTasks` for dependency checks would miss `In Progress` and intervention statuses, causing premature dispatch after process restart.
+**`loadAllTasks()`** — Returns tasks in **every** status by globbing `feature_requests/**/AGI-*.md`. Used by `filterEligible()` (with `isActionable()` guard for narrowing), `isTerminal()`, and dependency checks. A single loader keeps the code simple — `isActionable()` handles the dispatch-candidate filtering internally.
 
 ## Changes Required for Variant Support (vs. previous plan)
 
@@ -775,7 +810,7 @@ Summary of what the variant group feature specifically adds or changes:
 | **New method: `isTerminal()`** | Did not exist | Checks if any pending/active ticket depends on this one |
 | **New method: `branchName()`** | Did not exist | Returns `feat/${group}` or `feat/${id}` |
 | **MD result writing** | Branch was `feat/${id}` | Branch field uses `branchName(task)`, PR field only for terminal |
-| **`loadAllTasks()`** | Only loaded Backlog tasks | Also needs to read all statuses for `isTerminal()` check |
+| **`loadAllTasks()`** | Only loaded Backlog tasks | Reads all statuses from `feature_requests/**/AGI-*.md` — single loader for `filterEligible()`, `isTerminal()`, and dependency checks |
 | **`TaskStatus` enum** | Simple 4-status model | Full stage-aware statuses: `Needs Research` → `Research In Progress` → ... → `Done`, plus intervention statuses |
 | **Orchestrator dispatch** | Single-shot: one worker call per ticket | Stage-aware: one stage per dispatch, re-dispatches based on `nextStatus` from WORK_RESULT |
 
@@ -785,7 +820,7 @@ Summary of what the variant group feature specifically adds or changes:
 
 User: `npx tsx src/index.ts spec "Build a dashboard with auth, give me 2 versions to compare"`
 
-Spec Agent produces after clarification:
+Spec Agent creates `feature_requests/FR-1/` with variant subdirs and produces after clarification:
 
 ```
 # Variant 1: Minimal card layout
@@ -810,7 +845,7 @@ t=0   AGI-5 (Needs Plan) + AGI-8 (Needs Plan) eligible (no deps)
         → Worker B: AGI-8 Plan In Progress → outputs next_status: "Needs Implement"
 
 t=1   AGI-5 (Needs Implement) + AGI-8 (Needs Implement) eligible again
-        → dispatch both in parallel, each gets Implement stage prompt + Daytona sandbox
+        → dispatch both in parallel, each gets Implement stage prompt
         → Worker C: AGI-5 creates feat/dashboard-v1 branch, commits auth, pushes
            → outputs next_status: "Needs Validate"
         → Worker D: AGI-8 creates feat/dashboard-v2 branch, commits auth, pushes
@@ -863,12 +898,12 @@ User gets 2 PRs to compare side-by-side.
 | `src/lib/TaskStatus.ts` | **New** — `TaskStatus` enum + helper functions (`isActionable()`, `inProgressStatus()`, `stagePromptMap`) |
 | `src/lib/SpecAgent.ts` | **New** — Spec quality gate + clarification loop + variant chain duplication + ticket writer |
 | `src/lib/ClaudeSpawner.ts` | **New** — Local Claude CLI spawner (simplified from Horizon's `claude.ts`) |
-| `src/lib/SandboxQueueProcessor.ts` | Refactor to continuous loop, **stage-aware dispatch** (one stage per invocation), `stagePromptMap` routing, parallel dispatch, group-aware branching, terminal-only merge, `isTerminal()`, `branchName()`, `loadActionableTasks()`, result writing with `nextStatus` parsing |
+| `src/lib/SandboxQueueProcessor.ts` | Refactor to continuous loop, **stage-aware dispatch** (one stage per invocation), `stagePromptMap` routing, parallel dispatch, group-aware branching, terminal-only merge, `isTerminal()`, `branchName()`, `loadAllTasks()`, `filterEligible()` with `isActionable()` guard, `dispatchStage()` with conditional test-writer, result writing with `nextStatus` parsing |
 | `src/index.ts` | Two-mode entry: `spec` command vs orchestrator loop |
 | `prompts/agent0-spec.md` | **New** — Spec Agent prompt (5 quality criteria, clarification loop, variant detection) |
 | `prompts/agent2-worker-test.md` | **New** — Test-Writer Agent prompt (unit + integration test generation) |
-| `prompts/agent1-linear-reader.md` | **Adapt** — Replace Linear MCP calls with local `request_queue/` file reads |
-| `prompts/agent3-linear-writer.md` | **Adapt** — Replace Linear MCP calls with local MD file updates |
+| `prompts/agent1-linear-reader.md` | **Removed** — Queue reading logic absorbed into TypeScript orchestrator (`loadAllTasks()`, `filterEligible()`) |
+| `prompts/agent3-linear-writer.md` | **Removed** — Result writing logic absorbed into TypeScript orchestrator (`writeResults()`, `updateTaskStatus()`) |
 | `prompts/agent2-worker.md` | **Minor** — Update file path references from `.horizon/prompts/` to `prompts/`, update status references to use `TaskStatus` enum values |
 
 ---
@@ -880,7 +915,7 @@ User gets 2 PRs to compare side-by-side.
 3. **Spec Agent (stage-skipping)**: Well-specified request with exact implementation steps → tickets start at `Needs Implement`, not `Needs Research`.
 4. **Orchestrator (stage progression)**: Add a `Needs Research` ticket, verify it progresses through: `Research In Progress` → `Needs Plan` → `Plan In Progress` → `Needs Implement` → `Implement In Progress` → `Needs Validate` → `Validate In Progress` → `Done`.
 5. **Orchestrator (independent workers)**: Verify that after Worker A completes Research and sets `Needs Plan`, a fresh Worker B (new sandbox) picks up the ticket and runs the Plan stage.
-6. **Orchestrator (oneshot fast-track)**: Add a simple ticket, verify research stage routes to `Oneshot In Progress` → `Done`.
+6. **Orchestrator (oneshot fast-track)**: Add a simple ticket, verify research stage routes to `Needs Oneshot` → `Oneshot In Progress` → `Done`.
 7. **Orchestrator (intervention statuses)**: Verify that tickets set to `Blocked`, `Needs Human Review`, or `Needs Human Decision` are skipped by the orchestrator and logged as requiring attention. Verify manual status update resumes processing.
 8. **Orchestrator (variant groups)**: Add 2 variant chains, verify:
    - Chains execute in parallel (AGI-5 and AGI-8 at same time)
@@ -896,7 +931,7 @@ User gets 2 PRs to compare side-by-side.
 
 ### Purpose
 
-Every worker execution is followed by a **test-writer step** in the same sandbox. This is not optional — it is a deterministic part of the pipeline that produces tests scoped to the work just completed.
+Worker stages that produce code (Implement, Oneshot, Validate) are followed by a **test-writer step** in the same sandbox. This is not optional — it is a deterministic part of the pipeline that produces tests scoped to the work just completed. Research, Specification, and Plan stages do not trigger the test-writer since they produce analysis and plans, not code.
 
 ### Two-Tier Testing Strategy
 
@@ -907,19 +942,21 @@ Every worker execution is followed by a **test-writer step** in the same sandbox
 
 ### Execution Flow
 
-The test-writer runs **inside `executeWorker()`**, after the worker agent finishes but before the sandbox is torn down:
+The test-writer runs **inside `dispatchStage()`** for code-producing stages (Implement, Oneshot, Validate), after the worker agent finishes but before the sandbox is torn down:
 
 ```
-executeWorker(task):
-  1. Worker agent implements feature, commits, pushes
-  2. Test-writer agent runs in same sandbox:
-     a. Reads the git diff (all commits on this branch vs main)
-     b. Reads the ticket description + acceptance criteria
-     c. If terminal: also reads all tickets in the group chain for integration context
-     d. Writes test files to tests/
-     e. Runs `npm test` to verify all tests pass
-     f. Commits test files, pushes to same branch
-  3. Return combined WORK_RESULT (implementation + test summary)
+dispatchStage(task, stagePrompt):
+  1. Create Daytona sandbox
+  2. Worker agent runs stage prompt, commits, pushes
+  3. If stage is Implement, Oneshot, or Validate:
+     a. Test-writer agent runs in same sandbox
+     b. Reads the git diff (all commits on this branch vs main)
+     c. Reads the ticket description + acceptance criteria
+     d. If terminal: also reads all tickets in the group chain for integration context
+     e. Writes test files to tests/
+     f. Runs `npm test` to verify all tests pass
+     g. Commits test files, pushes to same branch
+  4. Return combined WORK_RESULT (stage output + test summary if applicable)
 ```
 
 ### Test-Writer Prompt (`prompts/agent2-worker-test.md` — NEW)
@@ -965,21 +1002,30 @@ all_passing: {true/false}
 
 ### Orchestrator Integration
 
-Modify `executeWorker()` to include the test-writer step:
+The `dispatchStage()` method conditionally runs the test-writer after code-producing stages:
 
 ```typescript
-private async executeWorker(task: TaskRequest): Promise<WorkerResult> {
+private readonly codeProducingStages = new Set([
+  "Needs Implement", "Needs Oneshot", "Needs Validate",
+]);
+
+private async dispatchStage(task: TaskRequest, stagePrompt: string): Promise<StageResult> {
   const sandbox = await this.createSandbox(task);
+  const originalStatus = task.status;  // capture before mutation
 
-  // Step 1: Implementation worker
-  const implResult = await this.runWorkerAgent(sandbox, task);
+  // Step 1: Transition to In Progress, then run the stage prompt
+  await this.updateTaskStatus(task, this.inProgressStatus(task.status));
+  const stageResult = await this.runWorkerAgent(sandbox, task, stagePrompt);
 
-  // Step 2: Test-writer (same sandbox, deterministic)
-  const isTerminal = await this.isTerminal(task);
-  const testPrompt = this.buildTestWriterPrompt(task, isTerminal);
-  const testResult = await this.runTestWriterAgent(sandbox, testPrompt);
+  // Step 2: Test-writer (same sandbox, only for code-producing stages)
+  let testResult: TestResult | undefined;
+  if (this.codeProducingStages.has(originalStatus)) {
+    const isTerminal = await this.isTerminal(task);
+    const testPrompt = this.buildTestWriterPrompt(task, isTerminal);
+    testResult = await this.runTestWriterAgent(sandbox, testPrompt);
+  }
 
-  return { impl: implResult, tests: testResult };
+  return { stage: stageResult, tests: testResult };
 }
 ```
 
@@ -1012,5 +1058,5 @@ The result block now includes test metadata:
 
 | File | Change |
 |------|--------|
-| `src/lib/SandboxQueueProcessor.ts` | Add `buildTestWriterPrompt()`, `runTestWriterAgent()`, update `executeWorker()` to include test-writer step, update `writeResults()` to include test metadata |
+| `src/lib/SandboxQueueProcessor.ts` | Add `buildTestWriterPrompt()`, `runTestWriterAgent()`, `codeProducingStages` set, update `dispatchStage()` to conditionally run test-writer after Implement/Oneshot/Validate, update `writeResults()` to include test metadata |
 | `prompts/agent2-worker-test.md` | **New** — Test-Writer prompt with template variables for ticket context, diff, and terminal flag |
