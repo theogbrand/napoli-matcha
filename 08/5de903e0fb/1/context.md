@@ -62,3 +62,16 @@ Check why the logs were not printed out like how they were previously?
 
 where can I view the task output file?
 
+### Prompt 10
+
+<bash-input>cat /private/tmp/claude-501/-Users-ob1-projects-opus-hackathon-napoli-matcha/tasks/b4ecb55.output</bash-input>
+
+### Prompt 11
+
+<bash-stdout></bash-stdout><bash-stderr>cat: /private/tmp/claude-501/-Users-ob1-projects-opus-hackathon-napoli-matcha/tasks/b4ecb55.output: No such file or directory
+</bash-stderr>
+
+### Prompt 12
+
+currently the sandbox output files are ephemeral, I want to save them for debugging. Can you add the code changes to do so? e.g. the current save path is /private/tmp/claude-501/-Users-ob1-projects-opus-hackathon-napoli-matcha/tasks/b4ecb55.output
+
