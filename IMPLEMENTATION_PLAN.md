@@ -1,6 +1,99 @@
 # Plan: Agent Pipeline Enhancement in Napoli-Matcha project
 
-> Refer to Horizon CLI agent repository at path (/Users/ob1/projects/startup/horizon-cli-agent) for references on working implementations of features ported over from Horizon Agent.
+---
+
+## Reference Architecture: Horizon CLI Agent
+
+> **Horizon CLI Agent repo**: `/Users/ob1/projects/startup/horizon-cli-agent`
+>
+> Horizon has a **working implementation** of the 3-agent pipeline (Linear Reader → Worker → Linear Writer) that napoli-matcha is adapting. Use it as a reference for:
+>
+> - **Claude spawning** — `src/lib/claude.ts`: streaming JSON parsing, `claude -p --output-format=stream-json --verbose` invocation. Napoli's `ClaudeSpawner` (Phase 2) is a simplified version of this.
+> - **Prompt loading** — `src/lib/prompts.ts`: loads from `.horizon/prompts/` with fallback to package `prompts/`. Napoli should follow the same pattern but load from `prompts/`.
+> - **6-stage worker pipeline** — `prompts/agent2-worker-*.md`: research → specification → plan → implement → validate (+ oneshot fast-track). These stages are directly portable.
+> - **Orchestrator loop** — `src/lib/claude.ts` + main loop: how agents are dispatched, results collected, and state transitions managed.
+>
+> ### Key Difference: Linear vs Local Queue
+>
+> | Concern | Horizon | Napoli-Matcha |
+> |---------|---------|---------------|
+> | **Ticket storage** | Linear (via MCP tools: `mcp__linear__list_issues`, `mcp__linear__get_issue`, etc.) | Local MD files in `request_queue/` with YAML frontmatter |
+> | **Status updates** | Linear API (`mcp__linear__update_issue`) | Update YAML `status:` field in the MD file |
+> | **Result posting** | Linear comments (`mcp__linear__create_comment`) | Append results section to the MD file body |
+> | **Sub-issue creation** | Linear API (`mcp__linear__create_issue`) | Write new MD files to `request_queue/` |
+> | **Agent 1 (Reader)** | Queries Linear for issues in specific statuses | Reads `request_queue/*.md`, filters by `status: Backlog` |
+> | **Agent 3 (Writer)** | Posts comments + updates Linear issue status | Updates MD frontmatter status + appends result sections |
+>
+> When implementing, **always check the Horizon equivalent first** for patterns, then adapt to local file I/O.
+
+---
+
+## Prompts Directory (`prompts/`)
+
+The `prompts/` directory contains agent prompts **ported from Horizon**. They follow Horizon's 3-agent architecture but need adaptation for napoli-matcha's local queue system.
+
+### Prompt Mapping & Adaptation Status
+
+| File | Horizon Role | Napoli Role | Adaptation Needed |
+|------|-------------|-------------|-------------------|
+| `agent1-linear-reader.md` | Reads tickets from Linear via MCP | **Queue Reader** — reads from `request_queue/*.md` | **HIGH** — Replace all `mcp__linear__*` calls with local file I/O. Keep multi-agent conflict/claim logic. |
+| `agent2-worker.md` | Stage router (dispatches to stage-specific prompts) | **Worker Router** — same role | **LOW** — Update file path references from `.horizon/prompts/` to `prompts/` |
+| `agent2-worker-oneshot.md` | Fast-track for simple tasks (~100 LOC) | Same | **NONE** — Direct port, fill `{{MERGE_INSTRUCTIONS}}` placeholder |
+| `agent2-worker-research.md` | Assess complexity, decide oneshot vs staged | Same | **NONE** — Direct port |
+| `agent2-worker-specification.md` | PM/designer perspective, write spec | Same | **NONE** — Direct port |
+| `agent2-worker-plan.md` | Break into implementation phases | Same | **NONE** — Direct port |
+| `agent2-worker-implement.md` | Execute phases, commit, push | Same | **NONE** — Direct port |
+| `agent2-worker-validate.md` | Run tests, verify success criteria | Same | **NONE** — Direct port, fill `{{MERGE_INSTRUCTIONS}}` placeholder |
+| `agent3-linear-writer.md` | Posts results to Linear, updates status | **Queue Writer** — updates MD files with results | **HIGH** — Remove all MCP calls, write results to MD files, handle sub-issue creation as new queue files |
+| `fragments/merge-auto.md` | Decision rubric for merge strategy | Same | **NONE** — Pure git operations, no Linear deps |
+| `fragments/merge-direct.md` | Direct merge path | Same | **NONE** |
+| `fragments/merge-pr.md` | PR creation path | Same | **NONE** |
+
+### New Prompts Needed
+
+| File | Purpose | Phase |
+|------|---------|-------|
+| `agent0-spec.md` | **Spec Agent prompt** — evaluates request against 5 quality criteria, asks clarifying questions or produces structured tickets. See Phase 1 below. | Phase 1: Spec Agent |
+| `agent2-worker-test.md` | **Test-Writer Agent prompt** — reads git diff + ticket context, writes unit tests (all tickets) + integration tests (terminal only). See Phase 5 below. | Phase 5: Test-Writer |
+
+### How Prompts Are Used in the Pipeline
+
+```
+User request
+  │
+  ▼
+agent0-spec.md (Spec Agent — LOCAL, via ClaudeSpawner)
+  │ Clarification loop until spec meets 5 quality criteria
+  │ Writes tickets to request_queue/
+  ▼
+agent1-linear-reader.md (Queue Reader — IN SANDBOX, adapted for local queue)
+  │ Reads ticket from queue, claims it, outputs context for worker
+  ▼
+agent2-worker.md → agent2-worker-{stage}.md (Worker — IN SANDBOX)
+  │ 6-stage pipeline: research → spec → plan → implement → validate
+  │ (or oneshot fast-track)
+  ▼
+agent2-worker-test.md (Test Writer — IN SAME SANDBOX, after worker)
+  │ Writes tests for the implementation, commits to same branch
+  ▼
+agent3-linear-writer.md (Queue Writer — IN SANDBOX, adapted for local queue)
+  │ Parses WORK_RESULT, updates MD file with results + status
+  ▼
+Orchestrator decides: terminal? → PR + merge. Non-terminal? → push, next ticket.
+```
+
+### Adaptation Guidelines for Horizon → Napoli Prompts
+
+When editing prompts that reference Horizon/Linear:
+
+1. **Replace `mcp__linear__*` tool calls** with instructions to read/write local MD files
+2. **Replace Linear status names** (`∞ Backlog`, `∞ Research In Progress`, etc.) with simple statuses: `Backlog`, `In Progress`, `Done`, `Blocked`
+3. **Keep the WORK_RESULT format** — it's the interface between agents and is Linear-agnostic
+4. **Keep multi-agent conflict handling** — still relevant when multiple orchestrator instances run
+5. **Replace "Linear issue" language** with "ticket" or "task" language
+6. **Keep branch naming conventions** but adapt from `horizon/{issue-id}` to `feat/{task-id}` or `feat/{group}`
+
+---
 
 ## Full Pipeline
 
@@ -65,7 +158,7 @@ clarify(userRequest: string): Promise<TaskRequest[]>
 
 Each spawn is stateless — all prior context (original request + accumulated answers) is passed in the prompt. Simple, no session management.
 
-### Spec Agent Prompt (embedded in code, not a file)
+### Spec Agent Prompt (`prompts/agent0-spec.md` — NEW)
 
 ```
 You are a Specification Agent. Your job is to evaluate a user's feature request
@@ -261,12 +354,18 @@ private filterEligible(
   return tasks.filter(task => {
     if (active.has(task.id)) return false;
     return task.dependsOn.every(depId => {
+      if (active.has(depId)) return false;   // dep still running → wait
       const dep = tasks.find(t => t.id === depId);
-      return !dep;  // not in backlog = already Done
+      return !dep;  // not in backlog and not active = Done
     });
   });
 }
 ```
+
+Three states a dependency can be in:
+- **`Done`** — not in Backlog list, not in `active` map → `true` (eligible)
+- **`In Progress`** — not in Backlog list, but IS in `active` map → `false` (wait)
+- **`Backlog`** — still in the Backlog task list → `false` (wait)
 
 No variant-specific logic needed — dependencies already keep chains ordered, and independent variant chains naturally parallelize.
 
@@ -475,9 +574,14 @@ User gets 2 PRs to compare side-by-side.
 | File | Change |
 |------|--------|
 | `src/lib/SpecAgent.ts` | **New** — Spec quality gate + clarification loop + variant chain duplication + ticket writer |
-| `src/lib/ClaudeSpawner.ts` | **New** — Local Claude CLI spawner |
+| `src/lib/ClaudeSpawner.ts` | **New** — Local Claude CLI spawner (simplified from Horizon's `claude.ts`) |
 | `src/lib/SandboxQueueProcessor.ts` | Refactor to continuous loop, parallel dispatch, group-aware branching, terminal-only merge, `isTerminal()`, `branchName()`, result writing |
 | `src/index.ts` | Two-mode entry: `spec` command vs orchestrator loop |
+| `prompts/agent0-spec.md` | **New** — Spec Agent prompt (5 quality criteria, clarification loop, variant detection) |
+| `prompts/agent2-worker-test.md` | **New** — Test-Writer Agent prompt (unit + integration test generation) |
+| `prompts/agent1-linear-reader.md` | **Adapt** — Replace Linear MCP calls with local `request_queue/` file reads |
+| `prompts/agent3-linear-writer.md` | **Adapt** — Replace Linear MCP calls with local MD file updates |
+| `prompts/agent2-worker.md` | **Minor** — Update file path references from `.horizon/prompts/` to `prompts/` |
 
 ---
 
@@ -526,7 +630,7 @@ executeWorker(task):
   3. Return combined WORK_RESULT (implementation + test summary)
 ```
 
-### Test-Writer Prompt (embedded in code)
+### Test-Writer Prompt (`prompts/agent2-worker-test.md` — NEW)
 
 ```
 You are a Test-Writer Agent. You have just received a completed implementation in this
@@ -617,3 +721,4 @@ The result block now includes test metadata:
 | File | Change |
 |------|--------|
 | `src/lib/SandboxQueueProcessor.ts` | Add `buildTestWriterPrompt()`, `runTestWriterAgent()`, update `executeWorker()` to include test-writer step, update `writeResults()` to include test metadata |
+| `prompts/agent2-worker-test.md` | **New** — Test-Writer prompt with template variables for ticket context, diff, and terminal flag |
