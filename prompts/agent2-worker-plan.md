@@ -32,7 +32,7 @@ Before starting work, verify you have received valid input:
    - issue_identifier
    - issue_title
    - stage (should be "plan")
-   - existing_artifacts.research (path to research document)
+   - existing_artifacts.research (path to research document) — OR an "Existing Artifacts" section provided by the orchestrator above
    - existing_artifacts.specification (optional - path to specification document if UX spec was needed)
 
 If ANY of these are missing or the input is unclear:
@@ -61,10 +61,11 @@ You do NOT have access to Linear. All issue context is provided above.
 
 ### Step 1: Read Research and Specification Documents
 
-Read the research document from `existing_artifacts.research`.
-Understand the findings, risks, and recommendations.
+Check the **"Existing Artifacts"** section above (provided by the orchestrator) for paths to research and specification documents. If not present there, fall back to `existing_artifacts.research` from the DISPATCH_RESULT.
 
-**If a specification document exists** (`existing_artifacts.specification`):
+Read the research document first. **DO NOT re-explore code that the research document already covers** — trust the research worker's analysis as the primary source. Focus your own exploration on gaps or areas the research didn't address.
+
+**If a specification document exists** (from the "Existing Artifacts" section or `existing_artifacts.specification`):
 - Read the specification document - it contains UX requirements from a PM/designer perspective
 - The specification defines the user experience goals, user flows, and interface specifications
 - Your technical plan MUST align with and fulfill the specification's UX requirements
