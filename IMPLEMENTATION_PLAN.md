@@ -698,7 +698,9 @@ Usage:
 
 ### Purpose
 
-Worker stages that produce code (Implement, Oneshot, Validate) are followed by a **test-writer step** in the same sandbox. This is not optional — it is a deterministic part of the pipeline that produces tests scoped to the work just completed. Research, Specification, and Plan stages do not trigger the test-writer since they produce analysis and plans, not code.
+Worker stages that produce code (Implement, Oneshot, Validate) are followed by a **test-writer step** in the same sandbox, **but only if the worker produced a non-empty `git diff`**. Research, Specification, and Plan stages do not trigger the test-writer since they produce analysis and plans, not code.
+
+**Post-Validate escalation policy**: If the test-writer runs after the Validate stage and `all_passing: false`, the ticket is set to `Needs Human Review` instead of continuing. This gives the Validate worker one chance to fix issues and have tests written for those fixes — but if the new tests still fail, a human must intervene. Post-Implement test failures are not escalated (Validate will catch them in the next stage).
 
 ### Two-Tier Testing Strategy
 
@@ -715,7 +717,7 @@ The test-writer runs **inside `dispatchStage()`** (see Phase 3) for code-produci
 dispatchStage(task, stagePrompt):
   1. Create Daytona sandbox, checkout branch
   2. Worker agent runs stage prompt, commits, pushes
-  3. If stage is Implement, Oneshot, or Validate:
+  3. If stage is Implement, Oneshot, or Validate AND git diff is non-empty:
      a. Test-writer agent runs in same sandbox
      b. Reads the git diff (all commits on this branch vs main)
      c. Reads the ticket description + acceptance criteria
@@ -723,6 +725,8 @@ dispatchStage(task, stagePrompt):
      e. Writes test files to tests/
      f. Runs `npm test` to verify all tests pass
      g. Commits test files, pushes to same branch
+     h. If stage was Validate AND all_passing is false:
+        → Set ticket to "Needs Human Review", skip merge, return early
   4. If terminal: merge agent runs (see Merge Agent section in Phase 3)
   5. Return combined result (stage + test summary + merge status)
 ```
@@ -883,16 +887,28 @@ async dispatchStage(task: TaskRequest, stagePrompt: string): Promise<StageResult
   await this.updateTaskStatus(task, this.inProgressStatus(task.status));
   const stageResult = await this.runWorkerAgent(sandbox, task, stagePrompt);
 
-  // Conditionally run test-writer for code-producing stages
+  // Conditionally run test-writer for code-producing stages with actual code changes
   let testResult: TestResult | undefined;
-  if (this.codeProducingStages.has(originalStatus)) {
+  const hasDiff = this.codeProducingStages.has(originalStatus) &&
+    await this.hasNonEmptyDiff(sandbox);
+
+  if (hasDiff) {
     const isTerminal = await this.isTerminal(task);
     testResult = await this.runTestWriterAgent(sandbox, this.buildTestWriterPrompt(task, isTerminal));
+
+    // Post-Validate escalation: one chance to fix + pass tests, then escalate
+    if (originalStatus === TaskStatus.NeedsValidate && !testResult.allPassing) {
+      return {
+        stage: stageResult, tests: testResult, merge: undefined,
+        nextStatus: TaskStatus.NeedsHumanReview,
+        intervention: { summary: "Tests failed after validation fix — needs human review" },
+      };
+    }
   }
 
   // Step 3: Merge agent (same sandbox, only for terminal code-producing stages)
   let mergeResult: MergeResult | undefined;
-  if (this.codeProducingStages.has(originalStatus) && await this.isTerminal(task)) {
+  if (hasDiff && await this.isTerminal(task)) {
     const mergePrompt = this.buildMergePrompt(task);  // loads merge-auto.md fragment
     mergeResult = await this.runMergeAgent(sandbox, mergePrompt);
   }
