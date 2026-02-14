@@ -1,0 +1,179 @@
+## Agent Instance
+
+You are part of pod: **crystal-chimera** / Loop 1 / Agent 2 (Worker)
+
+This identifier format is: Pod Name / Loop Number / Agent Number (Role).
+- **Pod Name**: crystal-chimera - persists for this entire Horizon session
+- **Loop Number**: 1 - increments each time Horizon processes a new ticket
+- **Agent**: Agent 2 (Worker) - your role in this loop
+
+## Linear Team Configuration
+
+**Team Key**: POLY
+
+This team key is used for all Linear MCP tool calls. While you don't make Linear calls directly, this context may be passed to other agents.
+
+---
+
+## Context from Linear (gathered by Agent 1)
+
+Issue claimed successfully. Here is the output for Agent 2:
+
+---
+
+## Issue Details
+
+- **Issue ID**: `267648d1-f5e8-4893-b530-94e7ff0374ab`
+- **Identifier**: POLY-39
+- **Title**: POLY-36b: SpecAgent — Quality Gate + Ticket Writer
+- **Status**: `∞ Validate In Progress` (just claimed)
+- **Stage to Execute**: **validate**
+- **Priority**: None set
+- **Labels**: None
+- **Branch**: `horizon/POLY-39`
+- **Project**: opus-hackathon
+
+## Description
+
+Build the front-door quality gate that evaluates user requests against spec criteria, runs a clarification loop (max 3 rounds), detects variant requests, and writes structured tickets to feature_requests/ directory.
+Includes ID continuation logic (nextFeatureRequestId, nextTicketId) and variant chain handling.
+See Sub-Issue 2 of the implementation plan.
+
+**Estimated Scope**: ~180 LOC source + ~120 LOC tests
+
+**Dependencies**: Requires POLY-36a to be completed first.
+
+**Plan Reference**: See horizon-docs/plans/2026-02-14-POLY-36-agent-pipeline-enhancement.md - Sub-Issue 2
+
+## Parent Issue
+
+- **Identifier**: POLY-36
+- **Title**: Agent Pipeline Enhancement
+- **Status**: `∞ Needs Implement`
+- **Project**: opus-hackathon
+- **Description**: Contains the full implementation plan for a 5-phase agent pipeline enhancement. POLY-39 is Sub-Issue 2 (SpecAgent). The parent has detailed specs for SpecAgent including clarification loop, variant chain handling, ticket writing, prompt format, and directory structure.
+
+## Sub-Issues of Parent (POLY-36)
+
+| Identifier | Title | Status | Notes |
+|---|---|---|---|
+| POLY-38 | POLY-36a: Foundations — TaskStatus, PromptLoader, ClaudeSpawner | **Done** | Dependency satisfied |
+| **POLY-39** | **POLY-36b: SpecAgent — Quality Gate + Ticket Writer** | **∞ Validate In Progress** | **THIS ISSUE — being validated now** |
+| POLY-40 | POLY-36c: Orchestrator Refactor — Stage-Aware Dispatch Loop | ∞ Needs Implement | Blocked until POLY-39 chain completes |
+| POLY-41 | POLY-36d: Test-Writer + Entry Point | ∞ Needs Implement | Depends on POLY-39 and POLY-40 |
+
+## Blocking/Blocked Relationships
+
+- No formal Linear relations set, but per the parent plan description:
+  - POLY-39 depends on POLY-38 (Done — satisfied)
+  - POLY-40 and POLY-41 depend on POLY-39
+
+## Previous Work (Comments)
+
+### Comment 1 (oldest) — Agent Claim for Implement stage
+> Agent Claimed | crystal-chimera / Loop 0 / Agent 1 | 2026-02-14T13:30:00Z
+> **Stage**: implement
+
+### Comment 2 — Stage Complete (Implement)
+> **Stage Complete** | crystal-chimera | 2026-02-14
+>
+> **Stage**: implement
+> **Duration**: 327s
+> **Branch**: `horizon/POLY-39`
+> **Commit**: `de73c25`
+>
+> ## Summary
+> Completed Sub-Issue 2: SpecAgent implementation with clarification loop and ticket writing functionality.
+>
+> **Implemented:**
+> - **SpecAgent class** (`src/lib/SpecAgent.ts`, ~170 LOC)
+>   - Clarification loop with max 3 rounds using ClaudeSpawner
+>   - TICKETS/QUESTIONS output parsing (exported pure functions)
+>   - Ticket writing to `feature_requests/FR-{n}/AGI-{m}.md` with YAML frontmatter
+>   - ID continuation logic (nextFeatureRequestId, nextTicketId)
+>   - Variant chain handling with group/variantHint fields
+>   - Human interaction via Node readline
+>
+> - **Comprehensive tests** (`tests/spec_agent.test.ts`, 15 tests)
+>   - parseTickets: single ticket, multiple tickets, variant tickets, empty output
+>   - parseQuestions: numbered, unnumbered, empty line filtering
+>   - nextFeatureRequestId: empty dir, existing dirs, non-sequential IDs
+>   - nextTicketId: empty dir, no AGI files, max continuation, cross-FR scanning
+>
+> ## Artifacts
+> - `src/lib/SpecAgent.ts` (~170 LOC)
+> - `tests/spec_agent.test.ts` (15 tests)
+> - All 87 unit tests pass
+> - Type check passes (npx tsc --noEmit)
+>
+> ## Next Steps
+> Move to `∞ Needs Validate` status for validation phase. Pre-existing integration test failures (daytona_sandbox, pr_creation) are unrelated and require live services.
+
+## Key Artifacts to Validate
+
+Based on the implement stage output:
+1. **`src/lib/SpecAgent.ts`** (~170 LOC) — Main implementation
+2. **`tests/spec_agent.test.ts`** (15 tests) — Test suite
+3. **Branch**: `horizon/POLY-39`, commit `de73c25`
+4. All 87 unit tests reported passing, type check passes
+
+## Validation Criteria
+
+Per the parent plan (POLY-36), the SpecAgent should:
+1. Evaluate user requests against 5 spec quality criteria
+2. Run a clarification loop (max 3 rounds) via ClaudeSpawner
+3. Detect variant requests ("give me 2 versions")
+4. Write structured tickets to `feature_requests/FR-{n}/AGI-{m}.md` with YAML frontmatter
+5. Support ID continuation logic (nextFeatureRequestId, nextTicketId)
+6. Handle variant chain duplication with independent IDs and group names
+7. Use Node readline for human interaction
+8. Parse TICKETS and QUESTIONS output formats
+9. `npm test` must pass
+10. `npx tsc --noEmit` must pass
+
+---
+
+# Agent 2: Worker
+
+You are the Worker agent. Agent 1 has already selected and claimed a Linear issue for you to work on. The issue context is provided above.
+
+## First Step: Load Stage-Specific Instructions
+
+Agent 1 has specified which stage to execute. **Read the detailed instructions for your stage before doing any work.**
+
+| Stage | Instructions File |
+|-------|-------------------|
+| oneshot | `.horizon/prompts/agent2-worker-oneshot.md` |
+| research | `.horizon/prompts/agent2-worker-research.md` |
+| specification | `.horizon/prompts/agent2-worker-specification.md` |
+| plan | `.horizon/prompts/agent2-worker-plan.md` |
+| implement | `.horizon/prompts/agent2-worker-implement.md` |
+| validate | `.horizon/prompts/agent2-worker-validate.md` |
+
+**Read the file for your stage now, then follow those instructions exactly.**
+
+## Quick Reference (details in stage-specific file)
+
+### Branch Workflow
+- You run in an isolated git worktree already on branch `horizon/{issue-identifier}`
+- Never push directly to main; do NOT run `git checkout main`
+- All merges happen via PR creation
+
+### Output Format
+All stages output a `WORK_RESULT` block. See your stage-specific file for the exact format.
+
+## Important Notes
+
+- You do NOT have access to Linear - don't try to update it
+- All Linear context you need is provided above from Agent 1
+- If something is unclear, make reasonable assumptions and note them
+- If you encounter errors you can't fix, document them clearly
+
+## Attachments
+
+If the Linear issue has attachments (images, documents, etc.), they are automatically downloaded to:
+```
+.horizon/attachments/{issue-identifier}/
+```
+
+For example, attachments for issue F-69 would be in `.horizon/attachments/F-69/`. Check this folder if the issue description references attached files - you can read them directly from there instead of trying to fetch URLs.

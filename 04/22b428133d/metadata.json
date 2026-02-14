@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "0422b428133d",
+  "strategy": "manual-commit",
+  "branch": "horizon/POLY-40",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "horizon-docs/prs/POLY-39.md",
+    "horizon-docs/validation/2026-02-14-POLY-39-specagent.md",
+    "request_queue/pr_creation_test.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/04/22b428133d/0/metadata.json",
+      "transcript": "/04/22b428133d/0/full.jsonl",
+      "context": "/04/22b428133d/0/context.md",
+      "content_hash": "/04/22b428133d/0/content_hash.txt",
+      "prompt": "/04/22b428133d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 39366,
+    "cache_read_tokens": 2134946,
+    "output_tokens": 448,
+    "api_call_count": 37
+  }
+}
