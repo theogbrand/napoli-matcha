@@ -377,11 +377,68 @@ Based on horizon's `claude.ts` pattern but stripped down (no MCP config, no rate
 
 ---
 
+## Prompt Loading (`src/lib/PromptLoader.ts` — NEW)
+
+A simple `loadPrompt(name)` function reads `.md` files from `prompts/` and fills `{{variable}}` placeholders via string replacement:
+
+```typescript
+function loadPrompt(name: string): string {
+  return fs.readFileSync(path.join("prompts", name), "utf-8");
+}
+
+function fillTemplate(template: string, vars: Record<string, string>): string {
+  return Object.entries(vars).reduce(
+    (s, [key, val]) => s.replaceAll(`{{${key}}}`, val), template
+  );
+}
+```
+
+Each `build*Prompt()` method calls `loadPrompt()` then `fillTemplate()` with the relevant context:
+
+```typescript
+// Example: buildTestWriterPrompt
+const template = loadPrompt("agent2-worker-test.md");
+return fillTemplate(template, {
+  TICKET_CONTEXT: `${task.title}\n${task.description}`,
+  BRANCH_DIFF: execSync(`git diff main...HEAD`).toString(),
+  IS_TERMINAL: String(isTerminal),
+  CHAIN_TICKETS: isTerminal ? this.loadChainTickets(task) : "",
+});
+```
+
+For the merge agent, `buildMergePrompt()` selects one of three merge fragments based on `mergeMode` config (`'auto' | 'merge' | 'pr'`, default `'auto'`):
+
+```typescript
+// Example: buildMergePrompt
+const fragmentMap: Record<string, string> = {
+  auto:  "fragments/merge-auto.md",
+  merge: "fragments/merge-direct.md",
+  pr:    "fragments/merge-pr.md",
+};
+const template = loadPrompt(fragmentMap[this.mergeMode]);
+return fillTemplate(template, {
+  BRANCH_NAME: this.branchName(task),
+  TICKET_CONTEXT: `${task.title}\n${task.description}`,
+  TEST_RESULTS: testResult?.summary ?? "No tests run",
+});
+```
+
+---
+
 ## Phase 3: Orchestrator (refactor `src/lib/SandboxQueueProcessor.ts`)
 
 ### Continuous Loop with Stage-Aware Dispatch
 
 Replace the batch `processQueue()` with a concurrent worker pool that dispatches **one stage per invocation**. A ticket cycles through `Needs Research → Research In Progress → Needs Plan → Plan In Progress → ...` with the orchestrator re-dispatching after each stage completes.
+
+#### Configuration (environment variables with defaults)
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `NAPOLI_MAX_CONCURRENCY` | `3` | Maximum parallel worker sandboxes |
+| `NAPOLI_MAX_ITERATIONS` | `0` (infinite) | Total stage dispatches before exiting. `0` = run forever. |
+| `NAPOLI_POLL_INTERVAL` | `30` | Seconds to sleep when no tasks are eligible |
+| `NAPOLI_MERGE_MODE` | `auto` | Merge fragment selection: `auto`, `merge`, or `pr` |
 
 ```typescript
 async processQueue(): Promise<void> {
@@ -439,7 +496,9 @@ This means:
 - Multiple tickets in different stages can run in parallel across different workers
 - A worker crash doesn't lose progress — the ticket stays at its last `In Progress` status
 
-**Crash recovery**: If a worker fails (exit code != 0 or no parseable WORK_RESULT), the orchestrator **retries once** by re-dispatching the same stage. If the retry also fails, the ticket is set to `Blocked` and logged for human attention. The human can investigate, fix the issue, and manually reset the status to the `Needs *` state to retry. No timeout is enforced — Daytona sandbox lifetime limits apply.
+**Crash recovery (worker failure)**: If a worker fails (exit code != 0 or no parseable WORK_RESULT), the orchestrator **retries once** by re-dispatching the same stage. If the retry also fails, the ticket is set to `Blocked` and logged for human attention. The human can investigate, fix the issue, and manually reset the status to the `Needs *` state to retry. No timeout is enforced — Daytona sandbox lifetime limits apply.
+
+**Crash recovery (orchestrator failure)**: If the orchestrator process itself crashes while tickets are `* In Progress`, those tickets remain stuck — `isActionable()` only matches `Needs *` statuses. In v1, a human must manually reset orphaned `In Progress` tickets back to their `Needs *` counterpart to resume processing. A future version could add a startup sweep or timeout-based recovery.
 
 ### Spec Agent Sets Initial Stage
 
@@ -519,6 +578,8 @@ private async isTerminal(task: TaskRequest): Promise<boolean> {
 }
 ```
 
+> **Note**: `isTerminal()` calls `loadAllTasks()` independently, which means a second glob scan when called from `dispatchStage()`. Acceptable for v1 queue sizes; future optimization can pass the pre-loaded task list as a parameter.
+
 > **Why `!== Done` instead of a whitelist**: With 16+ statuses in the `TaskStatus` enum, checking against a whitelist is fragile. The only status that means "this ticket no longer needs its dependency's branch" is `Done`. Everything else — `Needs Research`, `Plan In Progress`, `Blocked`, `Needs Human Decision`, etc. — means the dependency chain is still active.
 
 This determines:
@@ -589,9 +650,14 @@ Merging is handled by a **dedicated merge subagent** that runs in the same sandb
 
 The merge agent:
 1. Runs in the same sandbox (has full repo state, branch, test results)
-2. Uses the `merge-auto.md` rubric to decide: direct merge vs PR
-3. Executes `git merge --no-ff` or `gh pr create` accordingly
+2. Receives one of three merge fragment prompts (selected by `mergeMode` config):
+   - **`merge-auto.md`** (default) — self-contained decision rubric that evaluates the change and chooses direct merge or PR at runtime
+   - **`merge-direct.md`** — always merge directly to main (for trusted, low-risk pipelines)
+   - **`merge-pr.md`** — always create a PR (for repos requiring review)
+3. Executes `git merge --no-ff` or `gh pr create` based on the selected mode's instructions
 4. Outputs `merge_status` in WORK_RESULT: `success`, `pr_created`, or `blocked`
+
+The three fragments are **independent, mutually exclusive modes** (ported from Horizon). Each is a complete standalone prompt — `merge-auto.md` does not delegate to the other two. The orchestrator selects which fragment to load via a `mergeMode` config (`'auto' | 'merge' | 'pr'`, default `'auto'`).
 
 The orchestrator maps `merge_status` to the final ticket status:
 - `success` → `Done`
@@ -804,6 +870,12 @@ private stagePromptMap: Record<string, string> = {
   "Needs Oneshot":         "agent2-worker-oneshot.md",
 };
 
+private codeProducingStages = new Set([
+  "Needs Implement",
+  "Needs Validate",
+  "Needs Oneshot",
+]);
+
 async dispatchStage(task: TaskRequest, stagePrompt: string): Promise<StageResult> {
   const sandbox = await this.createSandbox(task);
   const originalStatus = task.status;  // capture before mutation
@@ -886,32 +958,28 @@ private isActionable(task: TaskRequest): boolean {
 
 Tickets in intervention statuses are **skipped by the orchestrator** until a human manually updates the status (e.g., back to `Needs Plan` after making a decision). The orchestrator logs them as requiring attention.
 
+### `inProgressStatus()` — Status Transition Helper
+
+Maps each actionable `Needs *` status to its corresponding `* In Progress` status:
+
+```typescript
+const inProgressMap: Record<string, TaskStatus> = {
+  [TaskStatus.NeedsResearch]:      TaskStatus.ResearchInProgress,
+  [TaskStatus.NeedsSpecification]: TaskStatus.SpecificationInProgress,
+  [TaskStatus.NeedsPlan]:          TaskStatus.PlanInProgress,
+  [TaskStatus.NeedsImplement]:     TaskStatus.ImplementInProgress,
+  [TaskStatus.NeedsValidate]:      TaskStatus.ValidateInProgress,
+  [TaskStatus.NeedsOneshot]:       TaskStatus.OneshotInProgress,
+};
+
+function inProgressStatus(status: TaskStatus): TaskStatus {
+  return inProgressMap[status] ?? status;
+}
+```
+
 ### Single Task Loader
 
 **`loadAllTasks()`** — Returns tasks in **every** status by globbing `feature_requests/**/AGI-*.md`. Used by `filterEligible()` (with `isActionable()` guard for narrowing), `isTerminal()`, and dependency checks. A single loader keeps the code simple — `isActionable()` handles the dispatch-candidate filtering internally.
-
-## Changes Required for Variant Support (vs. previous plan)
-
-Summary of what the variant group feature specifically adds or changes:
-
-| Component | Previous Plan | Change for Variants |
-|-----------|--------------|-------------------|
-| **Spec Agent prompt** | Produces flat ticket list | Detects "N versions" requests, duplicates full dependency chain N times with independent IDs, assigns `group` + `variant_hint` per chain |
-| **TaskRequest interface** | `dependsOn` field added | Also add `group?: string` and `variantHint?: string` |
-| **Worker branch name** | Always `feat/${task.id}` | `feat/${task.group}` if grouped, `feat/${task.id}` if standalone |
-| **Worker sandbox setup** | Clone repo, create new branch | If group branch exists on remote (prior chain ticket pushed to it), check it out instead of creating fresh |
-| **Worker PR creation** | Every ticket creates a PR | Only terminal tickets create PRs. Worker prompt includes `isTerminal` flag. |
-| **Worker prompt** | Task description only | Also includes `variant_hint` when present for design direction |
-| **Orchestrator `filterEligible`** | No change | No change — deps already handle cross-chain isolation |
-| **Orchestrator merge** | Merge after every completed ticket | Only merge terminal tickets (`isTerminal` check). Non-terminal grouped tickets just push to shared branch. |
-| **New method: `isTerminal()`** | Did not exist | Checks if any pending/active ticket depends on this one |
-| **New method: `branchName()`** | Did not exist | Returns `feat/${group}` or `feat/${id}` |
-| **MD result writing** | Branch was `feat/${id}` | Branch field uses `branchName(task)`, PR field only for terminal |
-| **`loadAllTasks()`** | Only loaded Backlog tasks | Reads all statuses from `feature_requests/**/AGI-*.md` — single loader for `filterEligible()`, `isTerminal()`, and dependency checks |
-| **`TaskStatus` enum** | Simple 4-status model | Full stage-aware statuses: `Needs Research` → `Research In Progress` → ... → `Done`, plus intervention statuses |
-| **Orchestrator dispatch** | Single-shot: one worker call per ticket | Stage-aware: one stage per dispatch, re-dispatches based on `nextStatus` from WORK_RESULT |
-
----
 
 ## Variant Example: End-to-End
 
@@ -988,39 +1056,6 @@ User gets 2 PRs to compare side-by-side.
 
 ---
 
-## Prompt Loading (`src/lib/PromptLoader.ts` — NEW)
-
-A simple `loadPrompt(name)` function reads `.md` files from `prompts/` and fills `{{variable}}` placeholders via string replacement:
-
-```typescript
-function loadPrompt(name: string): string {
-  return fs.readFileSync(path.join("prompts", name), "utf-8");
-}
-
-function fillTemplate(template: string, vars: Record<string, string>): string {
-  return Object.entries(vars).reduce(
-    (s, [key, val]) => s.replaceAll(`{{${key}}}`, val), template
-  );
-}
-```
-
-Each `build*Prompt()` method calls `loadPrompt()` then `fillTemplate()` with the relevant context:
-
-```typescript
-// Example: buildTestWriterPrompt
-const template = loadPrompt("agent2-worker-test.md");
-return fillTemplate(template, {
-  TICKET_CONTEXT: `${task.title}\n${task.description}`,
-  BRANCH_DIFF: execSync(`git diff main...HEAD`).toString(),
-  IS_TERMINAL: String(isTerminal),
-  CHAIN_TICKETS: isTerminal ? this.loadChainTickets(task) : "",
-});
-```
-
-For the merge agent, `buildMergePrompt()` loads the appropriate merge fragment (`merge-auto.md` by default) and fills in the branch name, ticket context, and test results.
-
----
-
 ## Files
 
 | File | Change |
@@ -1036,9 +1071,9 @@ For the merge agent, `buildMergePrompt()` loads the appropriate merge fragment (
 | `prompts/agent1-linear-reader.md` | **Removed** — Queue reading logic absorbed into TypeScript orchestrator (`loadAllTasks()`, `filterEligible()`) |
 | `prompts/agent3-linear-writer.md` | **Removed** — Result writing logic absorbed into TypeScript orchestrator (`writeResults()`, `updateTaskStatus()`) |
 | `prompts/agent2-worker.md` | **Minor** — Update file path references from `.horizon/prompts/` to `prompts/`, update status references to use `TaskStatus` enum values |
-| `prompts/fragments/merge-auto.md` | **Existing** — Used by merge agent as the decision rubric (auto mode). Already ported from Horizon. |
-| `prompts/fragments/merge-direct.md` | **Existing** — Direct merge instructions. Available if merge mode is overridden to `merge`. |
-| `prompts/fragments/merge-pr.md` | **Existing** — PR-only instructions. Available if merge mode is overridden to `pr`. |
+| `prompts/fragments/merge-auto.md` | **Existing** — Self-contained merge agent prompt for `auto` mode. Evaluates the change at runtime and chooses direct merge or PR. Default `mergeMode`. |
+| `prompts/fragments/merge-direct.md` | **Existing** — Standalone merge agent prompt for `merge` mode. Always merges directly to main. |
+| `prompts/fragments/merge-pr.md` | **Existing** — Standalone merge agent prompt for `pr` mode. Always creates a PR. |
 
 ---
 
