@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "085de903e0fb",
+  "session_id": "4d89629c-2424-4eb2-86b6-7b7cb0232789",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-14T15:02:16.06628Z",
+  "branch": "horizon/POLY-40",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "feature_requests/FR-test/AGI-test.md",
+    "prompts/agent2-worker-implement.md",
+    "prompts/agent2-worker-oneshot.md",
+    "prompts/agent2-worker-plan.md",
+    "prompts/agent2-worker-research.md",
+    "prompts/agent2-worker-specification.md",
+    "prompts/agent2-worker-validate.md",
+    "src/lib/SandboxQueueProcessor.ts"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 66840,
+    "cache_read_tokens": 897838,
+    "output_tokens": 791,
+    "api_call_count": 26
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-14T15:02:16.004991Z",
+    "agent_lines": 7,
+    "human_added": 17,
+    "human_modified": 10,
+    "human_removed": 0,
+    "total_committed": 34,
+    "agent_percentage": 20.588235294117645
+  }
+}

@@ -3,11 +3,17 @@
   "checkpoint_id": "085de903e0fb",
   "strategy": "manual-commit",
   "branch": "horizon/POLY-40",
-  "checkpoints_count": 3,
+  "checkpoints_count": 6,
   "files_touched": [
     "feature_requests/FR-test/AGI-test.md",
+    "prompts/agent2-worker-implement.md",
     "prompts/agent2-worker-oneshot.md",
+    "prompts/agent2-worker-plan.md",
+    "prompts/agent2-worker-research.md",
+    "prompts/agent2-worker-specification.md",
+    "prompts/agent2-worker-validate.md",
     "run_test.sh",
+    "src/lib/SandboxQueueProcessor.ts",
     "tests/pr_creation.test.ts"
   ],
   "sessions": [
@@ -24,13 +30,20 @@
       "context": "/08/5de903e0fb/1/context.md",
       "content_hash": "/08/5de903e0fb/1/content_hash.txt",
       "prompt": "/08/5de903e0fb/1/prompt.txt"
+    },
+    {
+      "metadata": "/08/5de903e0fb/2/metadata.json",
+      "transcript": "/08/5de903e0fb/2/full.jsonl",
+      "context": "/08/5de903e0fb/2/context.md",
+      "content_hash": "/08/5de903e0fb/2/content_hash.txt",
+      "prompt": "/08/5de903e0fb/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 83,
-    "cache_creation_tokens": 96469,
-    "cache_read_tokens": 1922832,
-    "output_tokens": 5239,
-    "api_call_count": 35
+    "input_tokens": 115,
+    "cache_creation_tokens": 163309,
+    "cache_read_tokens": 2820670,
+    "output_tokens": 6030,
+    "api_call_count": 61
   }
 }
