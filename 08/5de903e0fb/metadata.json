@@ -3,9 +3,12 @@
   "checkpoint_id": "085de903e0fb",
   "strategy": "manual-commit",
   "branch": "horizon/POLY-40",
-  "checkpoints_count": 1,
+  "checkpoints_count": 3,
   "files_touched": [
-    "run_test.sh"
+    "feature_requests/FR-test/AGI-test.md",
+    "prompts/agent2-worker-oneshot.md",
+    "run_test.sh",
+    "tests/pr_creation.test.ts"
   ],
   "sessions": [
     {
@@ -14,13 +17,20 @@
       "context": "/08/5de903e0fb/0/context.md",
       "content_hash": "/08/5de903e0fb/0/content_hash.txt",
       "prompt": "/08/5de903e0fb/0/prompt.txt"
+    },
+    {
+      "metadata": "/08/5de903e0fb/1/metadata.json",
+      "transcript": "/08/5de903e0fb/1/full.jsonl",
+      "context": "/08/5de903e0fb/1/context.md",
+      "content_hash": "/08/5de903e0fb/1/content_hash.txt",
+      "prompt": "/08/5de903e0fb/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 6,
-    "cache_creation_tokens": 6845,
-    "cache_read_tokens": 86029,
-    "output_tokens": 144,
-    "api_call_count": 4
+    "input_tokens": 83,
+    "cache_creation_tokens": 96469,
+    "cache_read_tokens": 1922832,
+    "output_tokens": 5239,
+    "api_call_count": 35
   }
 }
