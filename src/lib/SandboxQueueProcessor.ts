@@ -60,9 +60,9 @@ export class SandboxQueueProcessor {
             anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
             githubToken: process.env.GITHUB_TOKEN ?? "",
             claudeModel: "claude-sonnet-4-5-20250929",
-            maxConcurrency: 1,
+            maxConcurrency: 2,
             maxIterations: Infinity,
-            pollInterval: 5000,
+            pollInterval: 0,
             mergeMode: "pr",
           }
         : daytonaApiKeyOrConfig;

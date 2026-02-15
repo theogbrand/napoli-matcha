@@ -4,7 +4,7 @@ import { join } from "path";
 import matter from "gray-matter";
 import { spawn } from "child_process";
 
-const testFileName = "country_test.md";
+const testFileName = "healthkit-ui-review.md";
 const queueDir = join(import.meta.dirname, "..", "request_queue");
 const testFilePath = join(queueDir, testFileName);
 
@@ -12,7 +12,7 @@ function runOrchestrator(cwd: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn("tsx", ["src/index.ts"], {
       cwd,
-      env: { ...process.env, DAWN_MAX_ITERATIONS: "1" },
+      env: { ...process.env, DAWN_MAX_ITERATIONS: "10", DAWN_MAX_CONCURRENCY: "2"},
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -53,8 +53,21 @@ const progressedPastResearch = new Set([
 ]);
 
 describe("PR creation", () => {
-  it("should process a Needs Research item through at least one stage", async () => {
-    // 1. Reset the test file to status "Needs Research"
+  it("Process a multi-stage agent workflow in the same sandbox until PR", async () => {
+    // 1. Ensure no other tasks are actionable in the queue
+    const otherFiles = ["pr_creation_test.md", "joke_test.md", "country_test.md"];
+    for (const file of otherFiles) {
+      const filePath = join(queueDir, file);
+      try {
+        const content = await readFile(filePath, "utf-8");
+        const data = matter(content);
+        await writeFile(filePath, matter.stringify("", { ...data.data, status: "Done" }));
+      } catch {
+        // File doesn't exist, skip
+      }
+    }
+
+    // 2. Reset the test file to status "Needs Research"
     const initialContent = await readFile(testFilePath, "utf-8");
     const initialData = matter(initialContent);
 
@@ -62,19 +75,19 @@ describe("PR creation", () => {
       testFilePath,
       matter.stringify("", {
         ...initialData.data,
-        status: "Needs Implement",
+        status: "Needs Research",
       })
     );
 
-    // 2. Run the main loop with max 1 iteration, streaming output
+    // 3. Run the main loop with max 1 iteration, streaming output
     const exitCode = await runOrchestrator(join(import.meta.dirname, ".."));
 
-    // 3. Verify the final state
+    // 4. Verify the final state
     const finalContent = await readFile(testFilePath, "utf-8");
     const finalData = matter(finalContent);
 
     // Phase gate 1: status moved away from the initial state
-    expect(finalData.data.status).not.toBe("Needs Implement");
+    expect(finalData.data.status).not.toBe("Needs Research");
 
     // Phase gate 2: status is a known valid TaskStatus value
     expect(validStatuses).toContain(finalData.data.status);
