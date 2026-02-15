@@ -87,7 +87,7 @@ For each phase and for the overall implementation:
 ### Step 4: Write the Plan Document
 
 Create a markdown file at:
-`dawn-docs/plans/YYYY-MM-DD-{identifier}-{slug}.md`
+`dawn-docs/active/plans/YYYY-MM-DD-{identifier}-{slug}.md`
 
 ### Step 4.5: Assess Complexity and Consider Sub-Issues
 
@@ -171,7 +171,7 @@ The document should follow this structure:
 ### Step 5: Git Commit and Push
 
 ```bash
-git add dawn-docs/plans/
+git add dawn-docs/active/plans/
 git commit -m "plan({identifier}): {short description}"
 git push origin dawn/{identifier}
 ```
@@ -185,7 +185,7 @@ WORK_RESULT:
   success: true
   stage_completed: plan
   branch_name: dawn/{identifier}
-  artifact_path: dawn-docs/plans/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/plans/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash}
   next_status: "∞ Needs Implement"
   summary: |

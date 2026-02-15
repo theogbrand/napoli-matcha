@@ -148,7 +148,7 @@ Note your assessment in the research document.
 ### Step 7: Write Codebase Reference Document
 
 Create a markdown file at:
-`dawn-docs/research/YYYY-MM-DD-{identifier}-{slug}.md`
+`dawn-docs/active/research/YYYY-MM-DD-{identifier}-{slug}.md`
 
 Where:
 - YYYY-MM-DD is today's date
@@ -290,7 +290,7 @@ Document exact function signatures and interfaces that downstream agents will in
 ### Step 9: Git Commit and Push
 
 ```bash
-git add dawn-docs/research/
+git add dawn-docs/active/research/
 git commit -m "research({identifier}): {short description}"
 git push origin dawn/{identifier}
 ```
@@ -305,7 +305,7 @@ WORK_RESULT:
   stage_completed: research
   workflow: staged
   branch_name: dawn/{identifier}
-  artifact_path: dawn-docs/research/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/research/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash}
   next_status: "∞ Needs Specification"  # OR "∞ Needs Plan" if specification not needed
   summary: |

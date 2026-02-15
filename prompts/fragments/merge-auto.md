@@ -93,7 +93,7 @@ WORK_RESULT:
   workflow: {{WORKFLOW}}
   branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: dawn-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {merge commit hash on main}
   merge_status: success
   next_status: "∞ Done"
@@ -112,7 +112,7 @@ WORK_RESULT:
   workflow: {{WORKFLOW}}
   branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: dawn-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash on feature branch}
   merge_status: blocked
   merge_conflict_files: [file1.ts, file2.ts]
@@ -152,7 +152,7 @@ Include this as `repo_url` in WORK_RESULT.
 
 ## B2: Create PR Description Document
 
-Before creating the PR, write a comprehensive PR description document to `dawn-docs/prs/{identifier}.md`:
+Before creating the PR, write a comprehensive PR description document to `dawn-docs/active/prs/{identifier}.md`:
 
 ```markdown
 # PR: {issue_identifier} - {issue_title}
@@ -211,7 +211,7 @@ Before creating the PR, write a comprehensive PR description document to `dawn-d
 
 Commit and push this document:
 ```bash
-git add dawn-docs/prs/
+git add dawn-docs/active/prs/
 git commit -m "docs({identifier}): add PR description"
 git push origin dawn/{identifier}
 ```
@@ -224,7 +224,7 @@ Create the pull request using the description document:
 # Create the pull request with the description file
 gh pr create \
   --title "{issue_identifier}: {issue_title}" \
-  --body-file dawn-docs/prs/{identifier}.md \
+  --body-file dawn-docs/active/prs/{identifier}.md \
   --base main \
   --head dawn/{identifier}
 ```
@@ -255,8 +255,8 @@ WORK_RESULT:
   workflow: {{WORKFLOW}}
   branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: dawn-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
-  pr_description_path: dawn-docs/prs/{identifier}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  pr_description_path: dawn-docs/active/prs/{identifier}.md
   commit_hash: {short hash on feature branch}
   merge_status: pr_created
   pr_url: {GitHub PR URL}
@@ -277,7 +277,7 @@ WORK_RESULT:
   workflow: {{WORKFLOW}}
   branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: dawn-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash on feature branch}
   merge_status: pr_failed
   next_status: "∞ Blocked"

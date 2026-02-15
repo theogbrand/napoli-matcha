@@ -93,7 +93,7 @@ For each success criterion in the plan:
 ### Step 5: Write Validation Report
 
 Create a markdown file at:
-`dawn-docs/validation/YYYY-MM-DD-{identifier}-{slug}.md`
+`dawn-docs/active/validation/YYYY-MM-DD-{identifier}-{slug}.md`
 
 ```markdown
 # Validation Report: {issue_title}
@@ -143,7 +143,7 @@ or
 ### Step 6: Git Commit and Push
 
 ```bash
-git add dawn-docs/validation/
+git add dawn-docs/active/validation/
 git commit -m "validate({identifier}): {PASSED|FAILED}"
 git push origin dawn/{identifier}
 ```

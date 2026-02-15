@@ -68,7 +68,7 @@ WORK_RESULT:
   workflow: {{WORKFLOW}}
   branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: dawn-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {merge commit hash on main}
   merge_status: success
   next_status: "∞ Done"
@@ -87,7 +87,7 @@ WORK_RESULT:
   workflow: {{WORKFLOW}}
   branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: dawn-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash on feature branch}
   merge_status: blocked
   merge_conflict_files: [file1.ts, file2.ts]

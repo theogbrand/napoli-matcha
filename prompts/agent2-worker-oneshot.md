@@ -99,7 +99,7 @@ Fix any issues that arise.
 ### Step 5: Document (Brief)
 
 Create a brief document at:
-`dawn-docs/oneshot/YYYY-MM-DD-{identifier}-{slug}.md`
+`dawn-docs/active/oneshot/YYYY-MM-DD-{identifier}-{slug}.md`
 
 ```markdown
 # Oneshot: {issue_title}

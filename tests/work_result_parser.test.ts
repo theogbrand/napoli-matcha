@@ -90,7 +90,7 @@ WORK_RESULT:
   success: true
   stage_completed: research
   branch_name: dawn/AGI-4
-  artifact_path: dawn-docs/research/2026-02-15-AGI-4-feature-slug.md
+  artifact_path: dawn-docs/active/research/2026-02-15-AGI-4-feature-slug.md
   commit_hash: def5678
   next_status: "∞ Needs Plan"
   summary: Researched and documented.
@@ -98,7 +98,7 @@ WORK_RESULT:
       const result = parseWorkResult(output)!;
       expect(result).not.toBeNull();
       expect(result.artifactPath).toBe(
-        "dawn-docs/research/2026-02-15-AGI-4-feature-slug.md"
+        "dawn-docs/active/research/2026-02-15-AGI-4-feature-slug.md"
       );
       expect(result.stageCompleted).toBe("research");
       expect(result.success).toBe(true);

@@ -118,7 +118,7 @@ WORK_RESULT:
   success: true
   stage_completed: implement
   branch_name: dawn/{identifier}
-  artifact_path: dawn-docs/plans/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/plans/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash of final commit}
   next_status: "∞ Needs Validate"
   summary: |
@@ -136,7 +136,7 @@ WORK_RESULT:
   success: false
   stage_completed: implement
   branch_name: dawn/{identifier}
-  artifact_path: dawn-docs/plans/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/plans/YYYY-MM-DD-{identifier}-{slug}.md
   error: |
     Failed during Phase {N}: {phase title}
     Error: {description of what went wrong}

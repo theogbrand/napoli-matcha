@@ -273,7 +273,7 @@ WORK_RESULT:
   success: true
   stage_completed: research
   branch_name: dawn/AGI-1
-  artifact_path: dawn-docs/research/2026-02-15-AGI-1-add-auth.md
+  artifact_path: dawn-docs/active/research/2026-02-15-AGI-1-add-auth.md
   commit_hash: abc1234
   next_status: "Needs Specification"
   summary: Researched codebase.
@@ -311,7 +311,7 @@ WORK_RESULT:
     const data = await readFrontmatter();
     expect(data.artifacts).toBeDefined();
     expect((data.artifacts as Record<string, string>).research).toBe(
-      "dawn-docs/research/2026-02-15-AGI-1-add-auth.md"
+      "dawn-docs/active/research/2026-02-15-AGI-1-add-auth.md"
     );
   });
 
@@ -323,7 +323,7 @@ WORK_RESULT:
       repo: "https://github.com/test/repo",
       status: "Needs Specification",
       artifacts: {
-        research: "dawn-docs/research/2026-02-15-AGI-1-add-auth.md",
+        research: "dawn-docs/active/research/2026-02-15-AGI-1-add-auth.md",
       },
     });
 
@@ -338,7 +338,7 @@ WORK_RESULT:
 
     const prompt = spy.mock.calls[0][1];
     expect(prompt).toContain("**Existing Artifacts**:");
-    expect(prompt).toContain("research: dawn-docs/research/2026-02-15-AGI-1-add-auth.md");
+    expect(prompt).toContain("research: dawn-docs/active/research/2026-02-15-AGI-1-add-auth.md");
   });
 
   it("marks Blocked and persists to disk when output has no WORK_RESULT", async () => {

@@ -109,7 +109,7 @@ Apply these principles to each touchpoint:
 ### Step 4: Write the Specification Document
 
 Create a markdown file at:
-`dawn-docs/specifications/YYYY-MM-DD-{identifier}-{slug}.md`
+`dawn-docs/active/specifications/YYYY-MM-DD-{identifier}-{slug}.md`
 
 Where:
 - YYYY-MM-DD is today's date
@@ -195,7 +195,7 @@ How do we know the UX is successful?
 ### Step 5: Git Commit and Push
 
 ```bash
-git add dawn-docs/specifications/
+git add dawn-docs/active/specifications/
 git commit -m "spec({identifier}): {short description}"
 git push origin dawn/{identifier}
 ```
@@ -209,7 +209,7 @@ WORK_RESULT:
   success: true
   stage_completed: specification
   branch_name: dawn/{identifier}
-  artifact_path: dawn-docs/specifications/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/specifications/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash}
   next_status: "∞ Needs Plan"
   summary: |
