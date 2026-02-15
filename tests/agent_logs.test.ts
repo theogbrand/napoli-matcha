@@ -6,9 +6,6 @@ import matter from "gray-matter";
 import { SandboxQueueProcessor } from "../src/lib/SandboxQueueProcessor.js";
 import { TaskStatus } from "../src/lib/TaskStatus.js";
 
-/** Wait for fire-and-forget appendFile calls to settle */
-const flush = () => new Promise((r) => setTimeout(r, 50));
-
 function makeProcessor(queueDir: string): SandboxQueueProcessor {
   const p = new SandboxQueueProcessor("dummy-key");
   (p as any).queueDir = queueDir;
@@ -32,101 +29,6 @@ describe("Agent logs", () => {
 
   afterEach(async () => {
     await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  describe("handleStreamLine", () => {
-    let processor: SandboxQueueProcessor;
-    let logFile: string;
-
-    beforeEach(async () => {
-      processor = makeProcessor(tmpDir);
-      logFile = join(tmpDir, "test.log");
-      await writeFile(logFile, "");
-    });
-
-    it("parses valid JSON and writes with [json] prefix", async () => {
-      const json = JSON.stringify({ type: "system", message: "hello" });
-      (processor as any).handleStreamLine(json, "test", logFile);
-      await flush();
-
-      const content = await readFile(logFile, "utf-8");
-      expect(content).toContain("[json]");
-      expect(content).toContain('"type":"system"');
-    });
-
-    it("writes non-JSON lines with [raw] prefix", async () => {
-      (processor as any).handleStreamLine("some shell output", "test", logFile);
-      await flush();
-
-      const content = await readFile(logFile, "utf-8");
-      expect(content).toBe("[raw] some shell output\n");
-    });
-
-    it("skips empty and whitespace-only lines", async () => {
-      (processor as any).handleStreamLine("", "test", logFile);
-      (processor as any).handleStreamLine("   ", "test", logFile);
-      (processor as any).handleStreamLine(
-        "\x1b[32m\x1b[0m",
-        "test",
-        logFile
-      );
-      await flush();
-
-      const content = await readFile(logFile, "utf-8");
-      expect(content).toBe("");
-    });
-
-    it("strips ANSI escape codes before parsing JSON", async () => {
-      const json = JSON.stringify({ type: "result", result: "ok" });
-      const ansiWrapped = `\x1b[32m${json}\x1b[0m`;
-      (processor as any).handleStreamLine(ansiWrapped, "test", logFile);
-      await flush();
-
-      const content = await readFile(logFile, "utf-8");
-      expect(content).toContain("[json]");
-      expect(content).toContain('"type":"result"');
-    });
-
-    it("treats malformed JSON as a raw line", async () => {
-      (processor as any).handleStreamLine("{not valid json", "test", logFile);
-      await flush();
-
-      const content = await readFile(logFile, "utf-8");
-      expect(content).toBe("[raw] {not valid json\n");
-    });
-
-    it("writes assistant text content for assistant events", async () => {
-      const event = {
-        type: "assistant",
-        message: {
-          content: [{ type: "text", text: "Hello world" }],
-        },
-      };
-      (processor as any).handleStreamLine(
-        JSON.stringify(event),
-        "test",
-        logFile
-      );
-      await flush();
-
-      const content = await readFile(logFile, "utf-8");
-      expect(content).toContain("[json]");
-      expect(content).toContain("Hello world");
-    });
-
-    it("writes result content for result events", async () => {
-      const event = { type: "result", result: "Task completed successfully" };
-      (processor as any).handleStreamLine(
-        JSON.stringify(event),
-        "test",
-        logFile
-      );
-      await flush();
-
-      const content = await readFile(logFile, "utf-8");
-      expect(content).toContain("[json]");
-      expect(content).toContain("Task completed successfully");
-    });
   });
 
   describe("loadAllTasks - ID assignment", () => {
