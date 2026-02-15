@@ -386,7 +386,7 @@ export class SandboxQueueProcessor {
   }
 
   branchName(task: TaskRequest): string {
-    return task.group ? `feat/${task.group}` : `feat/${task.id}`;
+    return task.group ? `dawn/${task.group}` : `dawn/${task.id}`;
   }
 
   // --- Task loading and persistence ---
