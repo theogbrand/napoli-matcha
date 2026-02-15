@@ -5,37 +5,46 @@ description: >-
   dashboard app.
 repo: 'https://github.com/theogbrand/ralph-healthkit-view'
 number_of_sandboxes: 2
-status: Plan In Progress
+status: Awaiting Merge
 id: TEST-AGI-4
 branch_name: dawn/TEST-AGI-4
-commit_hash: ea50a7d
+commit_hash: 8b01b96
 last_summary: >-
   |
 
-  Specification defines a "Warm Precision" visual direction for Ralph —
-  coral-orange accent color,
+  Completed 5 phases:
 
-  warm neutral foundation, Geist Sans/Mono retained with refined type scale
-  (mono for data values,
+  - Phase 1: Design system foundation — warm coral-orange color palette (oklch),
+  dark mode toggle with localStorage persistence and system preference
+  detection, semantic color tokens (positive/warning/negative/stable)
 
-  smaller headings). Key UX decisions: animated fitness score ring on load,
-  category cards with
+  - Phase 2: Core component restyling — card variants
+  (default/elevated/interactive) with hover lift and active press, button press
+  feedback, tab underline uses primary color with rounded-full and content fade
+  transition, progress bar shimmer animation
 
-  hover lift + expand/collapse animation, sparklines enlarged from 20x10 to
-  80x32px, skeleton
+  - Phase 3: Dashboard page updates — redesigned header with dark mode toggle,
+  shimmer skeleton loading screens, compact tab labels, updated empty/error
+  state copy, removed redundant sync footer, section headings, interactive
+  category cards with expand/collapse animation
 
-  loading states replacing plain text, dark mode toggle with system preference
-  detection, and
+  - Phase 4: Chart visual refresh — centralized chart-colors utility, fitness
+  score ring animation with count-up effect and trend fade-in, sparklines
+  enlarged to 80x32px with accent gradient fill, all charts use themed score
+  colors, monospace tabular-nums typography for data values
 
-  consistent 200ms ease-out transitions throughout. Simplifications identified:
-  remove redundant
+  - Phase 5: Import page polish — replaced all hardcoded gray colors with theme
+  tokens, lucide-react icons, enhanced drag state with solid border and pulse,
+  result card slide-in animation, checkmark zoom-in, dark mode support
 
-  sync footer, shorten section headings, compact tab labels, unify trend display
-  to icon-only.
 
-  Three open questions flagged for human input: accent color confirmation, dark
-  mode default
+  Additional fix commit: Resolved 2 lint errors (setState in effects) using
+  useSyncExternalStore for theme provider and restructured useCountUp hook.
 
-  behavior, and score ring re-animation on tab switch.
+
+  All 31 tests pass. Lint passes with 0 errors (5 pre-existing warnings). Build
+  compiles successfully (static generation OOMs in CI environment but
+  compilation is confirmed valid).
+pr_url: 'https://github.com/theogbrand/ralph-healthkit-view/pull/7'
 ---
 

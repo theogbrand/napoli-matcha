@@ -6,6 +6,7 @@ export interface WorkResult {
   nextStatus?: TaskStatus;
   branchName?: string;
   commitHash?: string;
+  artifactPath?: string;
   mergeStatus?: string;
   prUrl?: string;
   summary?: string;
@@ -64,6 +65,7 @@ export function parseWorkResult(output: string): WorkResult | null {
   if (kv.has("stage_completed")) result.stageCompleted = kv.get("stage_completed");
   if (kv.has("branch_name")) result.branchName = kv.get("branch_name");
   if (kv.has("commit_hash")) result.commitHash = kv.get("commit_hash");
+  if (kv.has("artifact_path")) result.artifactPath = kv.get("artifact_path");
   if (kv.has("merge_status")) result.mergeStatus = kv.get("merge_status");
   if (kv.has("pr_url")) result.prUrl = kv.get("pr_url");
   if (kv.has("summary")) result.summary = kv.get("summary");

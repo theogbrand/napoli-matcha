@@ -268,6 +268,79 @@ WORK_RESULT:
     expect(prompt).toContain("dawn/AGI-1");
   });
 
+  it("persists artifact_path to frontmatter keyed by stage", async () => {
+    const outputWithArtifact = `WORK_RESULT:
+  success: true
+  stage_completed: research
+  branch_name: dawn/AGI-1
+  artifact_path: dawn-docs/research/2026-02-15-AGI-1-add-auth.md
+  commit_hash: abc1234
+  next_status: "Needs Specification"
+  summary: Researched codebase.
+`;
+
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Add auth",
+      description: "Implement OAuth2",
+      repo: "https://github.com/test/repo",
+      status: "Needs Research",
+    });
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    vi.spyOn(processor, "runClaudeInSandbox").mockImplementation(
+      async () => outputWithArtifact
+    );
+
+    // Stub specification stage to block so loop exits
+    const specBlocked = `WORK_RESULT:
+  success: false
+  stage_completed: specification
+  next_status: Blocked
+  error: Blocked for test.
+`;
+    let callIdx = 0;
+    vi.spyOn(processor, "runClaudeInSandbox").mockImplementation(
+      async () => [outputWithArtifact, specBlocked][callIdx++] ?? ""
+    );
+
+    await processor.dispatchStage(task, "agent2-worker-research.md", tasks);
+
+    const data = await readFrontmatter();
+    expect(data.artifacts).toBeDefined();
+    expect((data.artifacts as Record<string, string>).research).toBe(
+      "dawn-docs/research/2026-02-15-AGI-1-add-auth.md"
+    );
+  });
+
+  it("injects existing_artifacts into stage prompt", async () => {
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Add auth",
+      description: "Implement OAuth2",
+      repo: "https://github.com/test/repo",
+      status: "Needs Specification",
+      artifacts: {
+        research: "dawn-docs/research/2026-02-15-AGI-1-add-auth.md",
+      },
+    });
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    const spy = vi
+      .spyOn(processor, "runClaudeInSandbox")
+      .mockResolvedValue(specBlockedOutput);
+
+    await processor.dispatchStage(task, "agent2-worker-specification.md", tasks);
+
+    const prompt = spy.mock.calls[0][1];
+    expect(prompt).toContain("**Existing Artifacts**:");
+    expect(prompt).toContain("research: dawn-docs/research/2026-02-15-AGI-1-add-auth.md");
+  });
+
   it("marks Blocked and persists to disk when output has no WORK_RESULT", async () => {
     await writeTaskFile({
       id: "AGI-1",

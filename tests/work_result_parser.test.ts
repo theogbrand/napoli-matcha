@@ -85,6 +85,25 @@ WORK_RESULT:
       expect(result.nextStatus).toBe(TaskStatus.AwaitingMerge);
     });
 
+    it("parses artifact_path into result.artifactPath", () => {
+      const output = `WORK_RESULT:
+  success: true
+  stage_completed: research
+  branch_name: dawn/AGI-4
+  artifact_path: dawn-docs/research/2026-02-15-AGI-4-feature-slug.md
+  commit_hash: def5678
+  next_status: "∞ Needs Plan"
+  summary: Researched and documented.
+`;
+      const result = parseWorkResult(output)!;
+      expect(result).not.toBeNull();
+      expect(result.artifactPath).toBe(
+        "dawn-docs/research/2026-02-15-AGI-4-feature-slug.md"
+      );
+      expect(result.stageCompleted).toBe("research");
+      expect(result.success).toBe(true);
+    });
+
     it("uses the LAST WORK_RESULT block if multiple exist", () => {
       const output = `WORK_RESULT:
   success: false

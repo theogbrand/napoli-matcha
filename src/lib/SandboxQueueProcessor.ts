@@ -246,6 +246,20 @@ export class SandboxQueueProcessor {
 
     const filled = this.promptLoader.fill(stageTemplate, vars);
 
+    // Read artifacts from frontmatter
+    const raw = await readFile(task.filePath, "utf-8");
+    const { data } = matter(raw);
+    const artifacts = data.artifacts as Record<string, string> | undefined;
+
+    const artifactLines: string[] = [];
+    if (artifacts && Object.keys(artifacts).length > 0) {
+      artifactLines.push("**Existing Artifacts**:");
+      for (const [stage, path] of Object.entries(artifacts)) {
+        artifactLines.push(`  - ${stage}: ${path}`);
+      }
+      artifactLines.push("");
+    }
+
     // Prepend task context
     const context = [
       "## Task Context",
@@ -256,6 +270,7 @@ export class SandboxQueueProcessor {
       `**Repo**: ${task.repo}`,
       `**Branch**: ${this.branchName(task)}`,
       `**Stage**: ${task.status}`,
+      ...artifactLines,
       "",
       "---",
       "",
@@ -353,6 +368,10 @@ export class SandboxQueueProcessor {
     if (result.prUrl) data.pr_url = result.prUrl;
     if (result.summary) data.last_summary = result.summary;
     if (result.error) data.last_error = result.error;
+    if (result.artifactPath && result.stageCompleted) {
+      if (!data.artifacts) data.artifacts = {};
+      (data.artifacts as Record<string, string>)[result.stageCompleted] = result.artifactPath;
+    }
     await writeFile(task.filePath, matter.stringify("", data));
   }
 

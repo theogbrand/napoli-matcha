@@ -145,7 +145,7 @@ Assess whether this feature needs a UX specification before planning. The Specif
 
 Note your assessment in the research document.
 
-### Step 7: Write Research Document
+### Step 7: Write Codebase Reference Document
 
 Create a markdown file at:
 `dawn-docs/research/YYYY-MM-DD-{identifier}-{slug}.md`
@@ -154,6 +154,8 @@ Where:
 - YYYY-MM-DD is today's date
 - {identifier} is the issue identifier (e.g., RSK-123)
 - {slug} is a kebab-case slug from the issue title
+
+**Critical**: This document is the single source of truth for ALL downstream stages (specification, plan, implement, validate). Each stage runs in a fresh sandbox with no memory of prior stages. Write this document so thoroughly that **no downstream agent ever needs to run Grep, Glob, or Read to re-explore the codebase**. Every file path, function signature, code pattern, and integration point they will need must be in this document.
 
 The document should include:
 
@@ -172,17 +174,72 @@ The document should include:
 
 {Detailed breakdown of requirements from the issue description}
 
-## Codebase Analysis
+## File Map
 
-### Relevant Files
-- `path/to/file.ts` - {why it's relevant}
-- ...
+| File | Lines | Role | Relevance |
+|------|-------|------|-----------|
+| `src/lib/Example.ts` | 1-150 | Core processor class | Must modify `processItem()` method |
+| `src/lib/Types.ts` | 20-35 | Interface definitions | Add new `ItemConfig` interface |
+| `tests/example.test.ts` | 1-80 | Unit tests | Add test cases for new behavior |
 
-### Existing Patterns
-{Describe patterns to follow}
+Include EVERY file that downstream agents will need to read, modify, or reference. Include line ranges for the relevant sections.
 
-### Dependencies
-{What this code depends on}
+## Code Patterns and Conventions
+
+Document the actual patterns used in this codebase with concrete code snippets (5-15 lines each). Downstream agents will follow these patterns exactly.
+
+### Naming Conventions
+{Show examples of how classes, methods, variables, files are named}
+
+### Class Structure
+```typescript
+// Example from src/lib/ExistingClass.ts:42-58
+{paste actual code showing the pattern}
+```
+
+### Error Handling Pattern
+```typescript
+// Example from src/lib/ExistingClass.ts:75-82
+{paste actual code showing error handling}
+```
+
+### Import/Export Pattern
+{Show how modules are organized and exported}
+
+## Integration Points
+
+Document exact function signatures and interfaces that downstream agents will interact with.
+
+### Key Interfaces
+```typescript
+// From src/lib/Types.ts:10-25
+{paste the actual interface definitions}
+```
+
+### Function Signatures
+```typescript
+// Methods that will be called or modified
+{paste actual signatures with their parameters and return types}
+```
+
+### Data Flow
+{Describe how data flows through the relevant parts of the system: input → processing → output}
+
+## Testing Infrastructure
+
+### Test Runner & Commands
+- Runner: {vitest/jest/etc.}
+- Run all: `{exact command}`
+- Run specific: `{exact command with file pattern}`
+
+### Existing Test Files
+- `tests/example.test.ts` — {what it covers}
+
+### Test Patterns
+```typescript
+// Example from tests/existing.test.ts:15-35
+{paste an actual test showing the describe/it/expect pattern used}
+```
 
 ## Implementation Considerations
 
@@ -192,8 +249,10 @@ The document should include:
 ### Risks
 {Potential issues to watch for}
 
-### Testing Strategy
-{How to verify the implementation}
+### Scope Estimate
+- Files to modify: {count and list}
+- Files to create: {count and list}
+- Estimated lines of change: {number}
 
 ## Specification Assessment
 
