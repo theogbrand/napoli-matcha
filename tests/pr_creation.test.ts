@@ -2,14 +2,27 @@ import { describe, it, expect } from "vitest";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import matter from "gray-matter";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
 
-const execAsync = promisify(exec);
-
-const testFileName = "pr_creation_test.md";
+const testFileName = "country_test.md";
 const queueDir = join(import.meta.dirname, "..", "request_queue");
 const testFilePath = join(queueDir, testFileName);
+
+function runOrchestrator(cwd: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("tsx", ["src/index.ts"], {
+      cwd,
+      env: { ...process.env, DAWN_MAX_ITERATIONS: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    child.stdout.on("data", (chunk: Buffer) => process.stdout.write(chunk));
+    child.stderr.on("data", (chunk: Buffer) => process.stderr.write(chunk));
+
+    child.on("close", (code) => resolve(code ?? 0));
+    child.on("error", reject);
+  });
+}
 
 describe("PR creation", () => {
   it("should process a Needs Research item through one iteration", async () => {
@@ -25,17 +38,8 @@ describe("PR creation", () => {
       })
     );
 
-    // 2. Run the main loop with max 1 iteration
-    const { stdout, stderr } = await execAsync(
-      "DAWN_MAX_ITERATIONS=1 npx tsx src/index.ts",
-      {
-        cwd: join(import.meta.dirname, ".."),
-        maxBuffer: 10 * 1024 * 1024,
-      }
-    );
-
-    if (stdout) console.log(stdout);
-    if (stderr) console.error(stderr);
+    // 2. Run the main loop with max 1 iteration, streaming output
+    const exitCode = await runOrchestrator(join(import.meta.dirname, ".."));
 
     // 3. Verify the status changed from "Needs Research"
     const finalContent = await readFile(testFilePath, "utf-8");

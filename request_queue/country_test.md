@@ -7,6 +7,6 @@ description: >-
 repo: 'https://github.com/theogbrand/research'
 number_of_sandboxes: 1
 status: Needs Research
-id: AGI-3
+id: TEST-AGI-3
 ---
 
