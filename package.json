@@ -4,6 +4,7 @@
   "scripts": {
     "test": "vitest run --exclude tests/pr_creation.test.ts --exclude tests/daytona_sandbox.test.ts",
     "test:integration": "vitest run tests/pr_creation.test.ts tests/daytona_sandbox.test.ts",
+    "test:oneshot": "vitest run tests/simple_oneshot_pr_creation.test.ts",
     "test:pr": "vitest run tests/pr_creation.test.ts",
     "test:sandbox": "vitest run tests/daytona_sandbox.test.ts",
     "start": "tsx src/index.ts"
