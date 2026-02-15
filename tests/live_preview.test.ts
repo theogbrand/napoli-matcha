@@ -115,7 +115,7 @@ describe("Live Preview", () => {
       const pty = await sandbox.process.createPty({
         id: "http-server",
         cwd: "/home/daytona",
-        onData: (data) => process.stdout.write(`[server] ${data}`),
+        onData: (data) => process.stdout.write(`[server] ${Buffer.from(data).toString()}`),
       });
       await pty.waitForConnection();
       pty.sendInput("python3 -m http.server 8080\n");
