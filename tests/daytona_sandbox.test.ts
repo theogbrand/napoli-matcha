@@ -6,9 +6,11 @@ import { StreamFormatter, StreamEvent } from "../src/lib/StreamFormatter.js";
 dotenv.config();
 
 describe("Daytona sandbox", () => {
-  it("should create a sandbox, run Claude Code, and clean up", async () => {
+  it("should create a sandbox, run Claude Code, and produce stream-json events", async () => {
     const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
     const sandbox = await daytona.create({ language: "typescript" });
+
+    const events: StreamEvent[] = [];
 
     try {
       const claudeCommand =
@@ -41,6 +43,7 @@ describe("Daytona sandbox", () => {
 
             try {
               const event: StreamEvent = JSON.parse(stripped);
+              events.push(event);
               const formatted = formatter.format(event);
               if (formatted) console.log(`[test] ${formatted}`);
             } catch {
@@ -65,11 +68,24 @@ describe("Daytona sandbox", () => {
         if (stripped.startsWith("{")) {
           try {
             const event: StreamEvent = JSON.parse(stripped);
+            events.push(event);
             const formatted = formatter.format(event);
             if (formatted) console.log(`[test] ${formatted}`);
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
       }
+
+      // Phase gate 1: at least one stream event was parsed
+      expect(events.length).toBeGreaterThan(0);
+
+      // Phase gate 2: at least one assistant message was received
+      expect(events.some((e) => e.type === "assistant")).toBe(true);
+
+      // Phase gate 3: session ended with a result event
+      const resultEvent = events.find((e) => e.type === "result");
+      expect(resultEvent).toBeDefined();
     } finally {
       await sandbox.delete();
     }
