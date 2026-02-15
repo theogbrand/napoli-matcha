@@ -6,6 +6,7 @@ import {
   modelName,
   contextPct,
   formatToolSignature,
+  stripAnsi,
 } from "../src/lib/StreamFormatter.js";
 
 describe("StreamFormatter", () => {
@@ -23,6 +24,15 @@ describe("StreamFormatter", () => {
     });
     it("truncates long strings with ellipsis", () => {
       expect(truncate("abcdefghij", 5)).toBe("abcde...");
+    });
+  });
+
+  describe("stripAnsi", () => {
+    it("removes ANSI escape codes", () => {
+      expect(stripAnsi("\x1b[32m\x1b[1m●\x1b[0m hello")).toBe("● hello");
+    });
+    it("returns plain strings unchanged", () => {
+      expect(stripAnsi("no codes here")).toBe("no codes here");
     });
   });
 
