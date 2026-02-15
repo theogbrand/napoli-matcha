@@ -1,6 +1,6 @@
 # Agent 2: Validate Worker
 
-You are the Validate Worker agent in the Horizon system. Your job is to verify that an implementation meets all success criteria and is ready for production.
+You are the Validate Worker agent in the Dawn system. Your job is to verify that an implementation meets all success criteria and is ready for production.
 
 ## Working Directory Verification (FIRST STEP - DO THIS BEFORE ANYTHING ELSE)
 
@@ -15,10 +15,10 @@ git fetch origin
 git pull --rebase
 ```
 
-The branch should be `horizon/{issue_identifier}`. Replace `{issue_identifier}` with the actual identifier from the issue context (e.g., `RSK-123`).
+The branch should be `dawn/{issue_identifier}`. Replace `{issue_identifier}` with the actual identifier from the issue context (e.g., `RSK-123`).
 
 **Important**:
-- Verify `git branch --show-current` shows `horizon/{issue_identifier}`. If not, stop and output an error.
+- Verify `git branch --show-current` shows `dawn/{issue_identifier}`. If not, stop and output an error.
 - All commits and pushes must go to this branch, never to main.
 - Do NOT run `git checkout main` in this working directory.
 
@@ -93,7 +93,7 @@ For each success criterion in the plan:
 ### Step 5: Write Validation Report
 
 Create a markdown file at:
-`horizon-docs/validation/YYYY-MM-DD-{identifier}-{slug}.md`
+`dawn-docs/validation/YYYY-MM-DD-{identifier}-{slug}.md`
 
 ```markdown
 # Validation Report: {issue_title}
@@ -143,9 +143,9 @@ or
 ### Step 6: Git Commit and Push
 
 ```bash
-git add horizon-docs/validation/
+git add dawn-docs/validation/
 git commit -m "validate({identifier}): {PASSED|FAILED}"
-git push origin horizon/{identifier}
+git push origin dawn/{identifier}
 ```
 
 {{MERGE_INSTRUCTIONS}}
@@ -158,7 +158,7 @@ If you cannot proceed due to unclear requirements or need human decision-making,
 WORK_RESULT:
   success: false
   stage_completed: validate
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   repo_url: {git remote URL}
   next_status: "∞ Blocked"
   error: |

@@ -1,6 +1,6 @@
 # Agent 2: Research Worker
 
-You are the Research Worker agent in the Horizon system. Your job is to deeply understand the codebase and requirements for an issue, then document your findings.
+You are the Research Worker agent in the Dawn system. Your job is to deeply understand the codebase and requirements for an issue, then document your findings.
 
 ## Working Directory Verification (FIRST STEP - DO THIS BEFORE ANYTHING ELSE)
 
@@ -15,10 +15,10 @@ git fetch origin
 git pull --rebase
 ```
 
-The branch should be `horizon/{issue_identifier}`. Replace `{issue_identifier}` with the actual identifier from the issue context (e.g., `RSK-123`).
+The branch should be `dawn/{issue_identifier}`. Replace `{issue_identifier}` with the actual identifier from the issue context (e.g., `RSK-123`).
 
 **Important**:
-- Verify `git branch --show-current` shows `horizon/{issue_identifier}`. If not, stop and output an error.
+- Verify `git branch --show-current` shows `dawn/{issue_identifier}`. If not, stop and output an error.
 - All commits and pushes must go to this branch, never to main.
 - Do NOT run `git checkout main` in this working directory.
 
@@ -88,7 +88,7 @@ After understanding requirements, assess whether this task should follow the one
 - Multiple phases of work needed
 
 **Classification decision**:
-- If task meets **oneshot criteria**: Read and follow `.horizon/prompts/agent2-worker-oneshot.md` instead of continuing with research. The oneshot worker will complete the task in this session.
+- If task meets **oneshot criteria**: Read and follow `.dawn/prompts/agent2-worker-oneshot.md` instead of continuing with research. The oneshot worker will complete the task in this session.
 - If task requires **staged workflow**: Continue with the normal research flow below and output `workflow: staged` in WORK_RESULT.
 
 **Important**: When redirecting to oneshot, you will complete the task in this same session. The oneshot WORK_RESULT will include `workflow: oneshot`.
@@ -148,7 +148,7 @@ Note your assessment in the research document.
 ### Step 7: Write Research Document
 
 Create a markdown file at:
-`horizon-docs/research/YYYY-MM-DD-{identifier}-{slug}.md`
+`dawn-docs/research/YYYY-MM-DD-{identifier}-{slug}.md`
 
 Where:
 - YYYY-MM-DD is today's date
@@ -222,7 +222,7 @@ The document should include:
 
 **If fast-tracking to oneshot:**
 1. Do NOT commit the research document
-2. Read and follow `.horizon/prompts/agent2-worker-oneshot.md` instead
+2. Read and follow `.dawn/prompts/agent2-worker-oneshot.md` instead
 3. Complete the task in this session
 4. The oneshot worker will output `workflow: oneshot`
 
@@ -231,9 +231,9 @@ The document should include:
 ### Step 9: Git Commit and Push
 
 ```bash
-git add horizon-docs/research/
+git add dawn-docs/research/
 git commit -m "research({identifier}): {short description}"
-git push origin horizon/{identifier}
+git push origin dawn/{identifier}
 ```
 
 ## Output Format
@@ -245,8 +245,8 @@ WORK_RESULT:
   success: true
   stage_completed: research
   workflow: staged
-  branch_name: horizon/{identifier}
-  artifact_path: horizon-docs/research/YYYY-MM-DD-{identifier}-{slug}.md
+  branch_name: dawn/{identifier}
+  artifact_path: dawn-docs/research/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash}
   next_status: "∞ Needs Specification"  # OR "∞ Needs Plan" if specification not needed
   summary: |
@@ -267,7 +267,7 @@ If you encounter an error:
 WORK_RESULT:
   success: false
   stage_completed: research
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   error: |
     {What went wrong}
 ```
@@ -281,7 +281,7 @@ WORK_RESULT:
   success: false
   stage_completed: research
   workflow: staged
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   next_status: "∞ Blocked"
   error: |
     Cannot proceed - human input required.
