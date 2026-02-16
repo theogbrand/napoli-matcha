@@ -7,7 +7,7 @@ export async function setupSandboxEnvironment(
   repo: string,
   label: string
 ): Promise<string> {
-  const repoDir = "/home/daytona/repo";
+  const repoDir = "/root/repo";
   await sandbox.git.clone(repo, repoDir);
   console.log(`[${label}] Repo cloned`);
 
@@ -45,56 +45,6 @@ async function uploadPromptFiles(
   console.log(`[${label}] Uploaded ${files.length} prompt files to .dawn/`);
 }
 
-export async function installClaudeCLI(
-  sandbox: Sandbox,
-  label: string
-): Promise<void> {
-  console.log(`[${label}] Installing Claude CLI...`);
-  const claudeInstall = await sandbox.process.executeCommand(
-    "mkdir -p ~/.npm-global && npm config set prefix '~/.npm-global' && npm install -g @anthropic-ai/claude-code"
-  );
-  console.log(`[${label}] Claude CLI exit code: ${claudeInstall.exitCode}`);
-
-  if (claudeInstall.exitCode !== 0) {
-    console.error(
-      `[${label}] Failed to install Claude CLI: ${claudeInstall.result}`
-    );
-    throw new Error("Failed to install Claude CLI");
-  }
-
-  const claudeVerify = await sandbox.process.executeCommand(
-    "export PATH=~/.npm-global/bin:$PATH && which claude && claude --version"
-  );
-  console.log(
-    `[${label}] Claude CLI location and version: ${claudeVerify.result}`
-  );
-}
-
-export async function installGitHubCLI(
-  sandbox: Sandbox,
-  label: string
-): Promise<void> {
-  console.log(`[${label}] Installing GitHub CLI from binary...`);
-  const ghInstall = await sandbox.process.executeCommand(
-    "GH_VERSION=2.86.0 && mkdir -p ~/bin && curl -fsSL https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz -o /tmp/gh.tar.gz && tar -xzf /tmp/gh.tar.gz -C /tmp && cp /tmp/gh_${GH_VERSION}_linux_amd64/bin/gh ~/bin/gh && chmod +x ~/bin/gh && export PATH=~/bin:$PATH"
-  );
-  console.log(
-    `[${label}] GitHub CLI install exit code: ${ghInstall.exitCode}`
-  );
-
-  if (ghInstall.exitCode !== 0) {
-    console.error(
-      `[${label}] Failed to install gh CLI: ${ghInstall.result}`
-    );
-    throw new Error("Failed to install gh CLI");
-  }
-
-  const ghVerify = await sandbox.process.executeCommand(
-    "export PATH=~/bin:$PATH && gh --version"
-  );
-  console.log(`[${label}] GitHub CLI version: ${ghVerify.result}`);
-}
-
 export async function configureGit(
   sandbox: Sandbox,
   label: string,
@@ -109,7 +59,7 @@ export async function configureGit(
   );
   // Enable gh as git credential helper for push/PR operations
   await sandbox.process.executeCommand(
-    `GITHUB_TOKEN=${githubToken} PATH=~/bin:$PATH gh auth setup-git`
+    `GITHUB_TOKEN=${githubToken} gh auth setup-git`
   );
   console.log(`[${label}] Git configured`);
 }

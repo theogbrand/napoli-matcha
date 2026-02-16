@@ -1,4 +1,4 @@
-import { Daytona, Sandbox } from "@daytonaio/sdk";
+import { Daytona, Image, Sandbox } from "@daytonaio/sdk";
 import matter from "gray-matter";
 import { appendFile, mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
@@ -17,6 +17,7 @@ import {
   installGitHubCLI,
   configureGit,
   setupBranch,
+  generatePreviewUrls,
 } from "./SandboxSetup.js";
 import { StreamFormatter, StreamEvent, stripAnsi } from "./StreamFormatter.js";
 
@@ -130,13 +131,34 @@ export class SandboxQueueProcessor {
     const logDir = join(this.logsDir, task.id);
     await mkdir(logDir, { recursive: true });
 
-    const sandbox = await this.daytona.create({ language: "typescript" });
+    const GH_VERSION = "2.86.0";
+    const image = Image.base("node:24-bookworm").runCommands(
+      "apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates jq && rm -rf /var/lib/apt/lists/*",
+      `curl -fsSL https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz | tar -xz -C /tmp && mv /tmp/gh_${GH_VERSION}_linux_amd64/bin/gh /usr/local/bin/gh && chmod +x /usr/local/bin/gh`,
+      "npm install -g @anthropic-ai/claude-code",
+    );
+
+    const sandbox = await this.daytona.create({
+      language: "typescript",
+      image,
+      resources: { cpu: 2, memory: 4, disk: 8 },
+    }, {
+      timeout: 300,
+      onSnapshotCreateLogs: (chunk) => console.log(`[Dawn:${label}:build] ${chunk.trim()}`),
+    });
     console.log(`[Dawn:${label}] Sandbox created`);
 
     try {
+      const verify = await sandbox.process.executeCommand(
+        "which claude && claude --version && which gh && gh --version"
+      );
+      if (verify.exitCode !== 0) {
+        console.error(`[Dawn:${label}] Tool verification failed: ${verify.result}`);
+        throw new Error("Sandbox missing required tools (claude, gh)");
+      }
+      console.log(`[Dawn:${label}] Tools verified: ${verify.result.trim()}`);
+
       const repoDir = await setupSandboxEnvironment(sandbox, task.repo, label);
-      await installClaudeCLI(sandbox, label);
-      await installGitHubCLI(sandbox, label);
       await configureGit(sandbox, label, this.orchConfig.githubToken);
 
       const branch = this.branchName(task);
@@ -299,7 +321,7 @@ export class SandboxQueueProcessor {
     logFile: string
   ): Promise<string> {
     const escaped = prompt.replace(/'/g, "'\\''");
-    const claudeCmd = `claude -p '${escaped}' --dangerously-skip-permissions --output-format=stream-json --model ${this.orchConfig.claudeModel} --verbose`;
+    const claudeCmd = `IS_SANDBOX=1 claude -p '${escaped}' --dangerously-skip-permissions --output-format=stream-json --model ${this.orchConfig.claudeModel} --verbose`;
 
     console.log(`[Dawn:${label}] Starting Claude via PTY...`);
 
@@ -307,6 +329,9 @@ export class SandboxQueueProcessor {
     let buffer = "";
     let fullOutput = "";
     const formatter = new StreamFormatter();
+
+    let resolveResult: () => void;
+    const resultPromise = new Promise<void>((resolve) => { resolveResult = resolve; });
     const terminalLogFile = logFile.replace(/\.log$/, "-terminal.log");
 
     const pty = await sandbox.process.createPty({
@@ -315,18 +340,17 @@ export class SandboxQueueProcessor {
       envs: {
         ANTHROPIC_API_KEY: this.orchConfig.anthropicApiKey,
         GITHUB_TOKEN: this.orchConfig.githubToken,
-        PATH: "/home/daytona/.npm-global/bin:/home/daytona/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
       },
       onData: (data: Uint8Array) => {
         const text = decoder.decode(data, { stream: true });
-
         buffer += text;
         const lines = buffer.split("\n");
         buffer = lines.pop()!;
 
         for (const line of lines) {
           fullOutput = this.processStreamLine(
-            line, formatter, label, logFile, terminalLogFile, fullOutput
+            line, formatter, label, logFile, terminalLogFile, fullOutput, resolveResult!
           );
         }
       },
@@ -334,9 +358,11 @@ export class SandboxQueueProcessor {
 
     await pty.waitForConnection();
     pty.sendInput(`${claudeCmd}\n`);
-    pty.sendInput("exit\n");
 
-    const result = await pty.wait();
+    // Wait for Claude to emit the result event instead of pty.wait()
+    // (the PTY WebSocket doesn't close reliably after shell exit)
+    await resultPromise;
+    await pty.disconnect();
 
     // Flush remaining buffer
     if (buffer.trim()) {
@@ -345,8 +371,8 @@ export class SandboxQueueProcessor {
       );
     }
 
-    console.log(`[Dawn:${label}] PTY exited with code: ${result.exitCode}`);
-    await appendFile(logFile, `\nPTY exited with code: ${result.exitCode}\n`);
+    console.log(`[Dawn:${label}] Claude session completed`);
+    await appendFile(logFile, `\nClaude session completed\n`);
 
     return fullOutput;
   }
@@ -498,12 +524,14 @@ export class SandboxQueueProcessor {
     label: string,
     logFile: string,
     terminalLogFile: string,
-    fullOutput: string
+    fullOutput: string,
+    onResult?: () => void
   ): string {
     const stripped = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").trim();
     if (!stripped) return fullOutput;
 
     if (!stripped.startsWith("{")) {
+      console.log(`[${label}:raw] ${stripped}`);
       appendFile(logFile, `[raw] ${stripped}\n`);
       return fullOutput;
     }
@@ -520,6 +548,8 @@ export class SandboxQueueProcessor {
         console.log(`[${label}] ${formatted}`);
         appendFile(terminalLogFile, stripAnsi(formatted) + "\n");
       }
+
+      if (event.type === "result") onResult?.();
     } catch {
       appendFile(logFile, `[raw] ${stripped}\n`);
     }
