@@ -10,7 +10,9 @@ describe("Daytona sandbox", () => {
     const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
     const sandbox = await daytona.create({ 
       language: "typescript", 
-      ephemeral: true 
+      ephemeral: true,
+      resources: { cpu: 2, memory: 4, disk: 8 },
+      image: "node:24-alpine"
     });
 
     const events: StreamEvent[] = [];
