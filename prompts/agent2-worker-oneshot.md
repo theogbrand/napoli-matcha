@@ -219,7 +219,7 @@ Before creating the PR, write a comprehensive PR description document to `dawn-d
 
 ## Live Preview
 
-{If a dev server is running, include the preview URL here. Otherwise write "N/A - no web server"}
+{{PREVIEW_URL}}
 
 ## Screenshots
 

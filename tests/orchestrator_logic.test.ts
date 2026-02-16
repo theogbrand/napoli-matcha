@@ -614,6 +614,34 @@ WORK_RESULT:
     expect(data.preview_url).toBe("https://3000-mock.proxy.daytona.works");
   });
 
+  it("resolves {{PREVIEW_URL}} to Daytona URL in oneshot prompts", async () => {
+    await writeFile(
+      join((processor as any).promptLoader.promptsDir, "agent2-worker-oneshot.md"),
+      "Build it.\n{{MERGE_INSTRUCTIONS}}\nPreview: {{PREVIEW_URL}}"
+    );
+
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Build UI",
+      description: "Create landing page",
+      repo: "https://github.com/test/repo",
+      status: "Needs Oneshot",
+    });
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    const spy = vi
+      .spyOn(processor, "runClaudeInSandbox")
+      .mockResolvedValue(specBlockedOutput);
+
+    await processor.dispatchStage(task, "agent2-worker-oneshot.md", tasks);
+
+    const prompt = spy.mock.calls[0][1];
+    expect(prompt).toContain("https://3000-mock.proxy.daytona.works");
+    expect(prompt).not.toContain("{{PREVIEW_URL}}");
+  });
+
   it("marks Blocked when MAX_STAGES is exhausted", async () => {
     const loopingOutput = `WORK_RESULT:
   success: true

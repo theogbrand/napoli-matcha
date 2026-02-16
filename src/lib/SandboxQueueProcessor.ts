@@ -139,9 +139,10 @@ export class SandboxQueueProcessor {
     const sandbox = await this.daytona.create({
       language: "typescript",
       image,
+      autoStopInterval: 0,   
       resources: { cpu: 2, memory: 4, disk: 8 },
     }, {
-      timeout: 300,
+      timeout: 0,
       onSnapshotCreateLogs: (chunk) => console.log(`[Dawn:${label}:build] ${chunk.trim()}`),
     });
     console.log(`[Dawn:${label}] Sandbox created`);
@@ -299,6 +300,7 @@ export class SandboxQueueProcessor {
       PREVIEW_URLS: Object.entries(previewUrls)
         .map(([port, url]) => `- Port ${port}: ${url}`)
         .join("\n"),
+      PREVIEW_URL: previewUrls[3000] ?? "N/A - no web server",
     };
 
     const filled = this.promptLoader.fill(stageTemplate, vars);
