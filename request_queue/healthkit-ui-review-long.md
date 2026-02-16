@@ -6,7 +6,7 @@ description: >-
   running, so I can manually monitor the changes you make to the UI.
 repo: 'https://github.com/theogbrand/ralph-healthkit-view'
 number_of_sandboxes: 2
-status: Needs Research
+status: Done
 id: TEST-AGI-4
 ---
 
