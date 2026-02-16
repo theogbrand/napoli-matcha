@@ -1,32 +1,118 @@
-# Proposed Arch
+# Horizon's Dawn Agents
 
-## UIUX:
-### Stage 0:
-- Edit request_queue/joke_test.md with status 'Backlog' and run:
-    - To add ENUM for status later
+Horizon's Dawn Agents work in parallel to turn feature requests into PRs with velocity and confidence.
+
+Dawn Agents are self-documenting, self-improving, and understand your team's tooling, tribal knowledge, and preferences.
+
+Dawn Agents focus on building systems and procedures that give engineers high confidence in PR quality without manual code review. These systems include robust testing suites, comprehensive success criteria, and human-in-the-loop when clarity is needed.
+
+## Quick Start
+
+### 1. Install
 
 ```bash
-npm install
-npx tsx src/index.ts 
+npm install -g dawn-cli-agent
 ```
 
-### Stage 1:
-run CLI with request and repo (SOON):
+### 2. Configure environment
+
+Create a `.env` file in your project root:
+
+```env
+# Required
+DAYTONA_API_KEY=...
+ANTHROPIC_API_KEY=...
+GITHUB_TOKEN=...
+
+# Optional
+DAWN_CLAUDE_MODEL=claude-opus-4-6     # Model to use
+DAWN_MAX_CONCURRENCY=1                # Parallel tasks
+DAWN_MERGE_MODE=pr                    # "pr" | "auto" | "direct"
+DAWN_POLL_INTERVAL=5000               # Poll interval (ms)
+DAWN_MAX_ITERATIONS=Infinity          # Max loop iterations
+```
+
+### 3. Add tasks
+
+Create a `request_queue/` directory and add markdown files — one per task:
+
+```markdown
+---
+title: Fix the login bug
+description: The login form crashes when email contains a +
+repo: https://github.com/your-org/your-repo
+status: Needs Oneshot
+---
+
+Additional context for the agent goes here in the markdown body.
+```
+
+### 4. Run
+
 ```bash
-npx tsx src/index.ts https://github.com/scikit-learn/scikit-learn \
-  -p "Investigate TODO comments across this repository. Spawn sub-agents to explore different modules. Find the easiest TODO and fix it."
+dawn
 ```
 
-### Stage 2:
-Submit issues via some queue
+Dawn picks up every actionable task in `request_queue/`, spins up isolated Daytona sandboxes, runs Claude, and opens PRs on the target repos.
 
-## Agent Hierarchy:
-RLM with 3-agent hierarchy:
-1. Issue Reader Agent 
-    - Filters open issues from markdown files in directory ./issues, and returns a list of issues that are ready to be worked on.
-        - Use Issue statuses as FSM
-2. Worker Agent
-3. Issue Writer Agent
+---
+
+## Task File Reference
+
+Task files live in `request_queue/*.md`. Each file has YAML frontmatter that drives the pipeline.
+
+### Required Fields
+
+| Field         | Type   | Description |
+|---------------|--------|-------------|
+| `title`       | string | Short task name |
+| `description` | string | What the agent should do |
+| `repo`        | string | Target GitHub repo URL |
+| `status`      | string | Pipeline entry point (see statuses below) |
+
+### Optional Fields
+
+| Field                | Type             | Description |
+|----------------------|------------------|-------------|
+| `id`                 | string           | Unique task ID (auto-generated as `AGI-N` if omitted) |
+| `number_of_sandboxes`| number          | Sandbox instances to create (default `1`) |
+| `depends_on`         | string or array  | Task ID(s) that must reach `Done` before this task runs |
+| `group`              | string           | Branch naming group (`dawn/{group}`) |
+| `variant_hint`       | string           | Execution variant hint (`"pty"` or `"exec"`) |
+
+### Generated Fields (written by Dawn at runtime)
+
+| Field          | Type   | Set when |
+|----------------|--------|----------|
+| `branch_name`  | string | Sandbox starts |
+| `commit_hash`  | string | Work completes |
+| `pr_url`       | string | PR is created |
+| `preview_url`  | string | Live preview available |
+| `last_summary` | string | Each stage completes |
+| `last_error`   | string | A stage fails |
+| `artifacts`    | object | Stage produces output (`{ "Research": "path" }`) |
+
+### Status Values
+
+**Starting statuses** — set one of these to queue a task:
+
+| Status             | Pipeline |
+|--------------------|----------|
+| `Needs Research`   | Full pipeline: Research → Specification → Plan → Implement → Validate → PR |
+| `Needs Oneshot`    | Single-shot: one Claude invocation → PR |
+
+You can also enter the full pipeline at any stage: `Needs Specification`, `Needs Plan`, `Needs Implement`, `Needs Validate`.
+
+**Runtime statuses** (set automatically by Dawn):
+
+| Status                  | Meaning |
+|-------------------------|---------|
+| `* In Progress`         | Stage currently executing |
+| `Done`                  | Task completed |
+| `Awaiting Merge`        | PR created, awaiting merge |
+| `Blocked`               | Stage failed |
+| `Needs Human Review`    | Paused for human review |
+| `Needs Human Decision`  | Paused for human decision |
 
 ---
 

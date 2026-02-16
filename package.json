@@ -1,7 +1,16 @@
 {
   "name": "dawn-cli-agent",
   "version": "0.1.0",
-  "description": "Autonomous task queue processor - dispatches Claude worker agents to generate PRs",
+  "description": [
+    "Turn feature requests into merged pull requests with velocity and confidence.",
+    "Horizon’s Dawn Agents work in parallel to turn feature requests into PRs with velocity and confidence.",
+    "",
+    "Dawn Agents are self-documenting, self-improving, and understand your team's tooling, tribal knowledge, and preferences.",
+    "",
+    "Dawn Agents focus on building systems and procedures that give engineers high confidence in PR quality without manual code review.",
+    "These systems include robust testing suites, comprehensive success criteria, and human-in-the-loop when clarity is needed."
+  ],
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
