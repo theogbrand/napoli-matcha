@@ -1,14 +1,41 @@
 {
   "name": "dawn-cli-agent",
+  "version": "0.1.1",
+  "description": [
+    "Turn feature requests into merged pull requests with velocity and confidence.",
+    "Horizon’s Dawn Agents work in parallel to turn feature requests into PRs with velocity and confidence.",
+    "",
+    "Dawn Agents are self-documenting, self-improving, and understand your team's tooling, tribal knowledge, and preferences.",
+    "",
+    "Dawn Agents focus on building systems and procedures that give engineers high confidence in PR quality without manual code review.",
+    "These systems include robust testing suites, comprehensive success criteria, and human-in-the-loop when clarity is needed."
+  ],
+  "license": "Apache-2.0",
   "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "dawn": "dist/cli.js"
+  },
+  "files": [
+    "dist/**/*",
+    "prompts/**/*"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "prepublishOnly": "npm run build",
+    "start": "tsx src/index.ts",
     "test": "vitest run --exclude tests/pr_creation.test.ts --exclude tests/daytona_sandbox.test.ts --exclude tests/live_preview.test.ts",
     "test:preview": "vitest run tests/live_preview.test.ts",
     "test:integration": "vitest run tests/pr_creation.test.ts tests/daytona_sandbox.test.ts",
     "test:oneshot": "vitest run tests/simple_oneshot_pr_creation.test.ts",
     "test:pr": "vitest run tests/pr_creation.test.ts",
-    "test:sandbox": "vitest run tests/daytona_sandbox.test.ts",
-    "start": "tsx src/index.ts"
+    "test:sandbox": "vitest run tests/daytona_sandbox.test.ts"
   },
   "dependencies": {
     "@daytonaio/sdk": "^0.140.0",

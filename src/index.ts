@@ -3,10 +3,29 @@ import {
   SandboxQueueProcessor,
   OrchestratorConfig,
 } from "./lib/SandboxQueueProcessor.js";
+import { getVersion } from "./lib/version.js";
 
 dotenv.config();
 
-async function main() {
+const BOLD = "\x1b[1m";
+const YELLOW = "\x1b[33m";
+const DIM = "\x1b[2m";
+const RESET = "\x1b[0m";
+
+function displayBanner(): void {
+  const version = getVersion();
+  console.log(`
+${BOLD}    ▓█▀▄ ▄▀▄ █   █ █▄ █
+    █▄▀  █▀█ ▀▄▀▄▀ █ ▀█${RESET}
+
+    ${YELLOW}☀  Turn task queues into pull requests  ☀${RESET}  ${DIM}v${version}${RESET}
+${"═".repeat(55)}
+`);
+}
+
+export async function main() {
+  displayBanner();
+
   const config: OrchestratorConfig = {
     daytonaApiKey: process.env.DAYTONA_API_KEY!,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY!,

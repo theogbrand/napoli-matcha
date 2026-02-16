@@ -67,7 +67,7 @@ export async function configureGit(
 export async function generatePreviewUrls(
   sandbox: Sandbox,
   ports: number[] = [3000, 5173, 8080],
-  expiresInSeconds: number = 72 * 60 * 60 // 72 hours
+  expiresInSeconds: number = 24 * 60 * 60 // 72 hours
 ): Promise<Record<number, string>> {
   const urls: Record<number, string> = {};
   for (const port of ports) {
