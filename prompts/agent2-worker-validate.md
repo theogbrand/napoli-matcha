@@ -58,18 +58,21 @@ You do NOT have access to Linear. All issue context is provided above.
 
 ## Live Preview (REQUIRED for Web/UI Tasks)
 
-If this project is a web application with a dev server (e.g., `npm run dev`, `next dev`, `vite`), you MUST start it before emitting WORK_RESULT:
+If this project is a web application with a dev server (e.g., `npm run dev`, `next dev`, `vite`), you MUST:
 
-```bash
-nohup npm run dev -- --port 3000 &
-sleep 5
-```
+1. Start the dev server before emitting WORK_RESULT:
+   ```bash
+   nohup npm run dev -- --port 3000 &
+   sleep 5
+   ```
 
-Then include the preview URL for port 3000 in your WORK_RESULT as `preview_url`.
+2. Use the **Daytona preview URL** (not localhost!) for port 3000 from the list below as `preview_url` in your WORK_RESULT.
 
-Available preview URLs (publicly accessible, no auth needed):
+Available Daytona preview URLs (publicly accessible, no auth needed):
 
 {{PREVIEW_URLS}}
+
+**IMPORTANT**: Report the Daytona URL from above (e.g., `https://3000-xxx.proxy.daytona.works`), NOT `http://localhost:3000`. The Daytona URL is the publicly accessible proxy — localhost is only reachable inside the sandbox.
 
 ## Validation Process
 

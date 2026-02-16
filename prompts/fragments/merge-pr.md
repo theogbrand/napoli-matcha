@@ -59,6 +59,10 @@ Before creating the PR, write a comprehensive PR description document to `dawn-d
 
 {Any steps needed for users upgrading, or "None" if not applicable}
 
+## Live Preview
+
+{If a dev server is running, include the preview URL here. Otherwise write "N/A - no web server"}
+
 ## Screenshots
 
 {If UI changes, include before/after screenshots, or "N/A" for non-UI changes}

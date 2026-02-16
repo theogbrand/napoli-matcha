@@ -136,6 +136,36 @@ describe("Orchestrator logic", () => {
       expect(processor.branchName(task)).toBe("dawn/AGI-5");
     });
   });
+
+  describe("resolvePreviewUrl", () => {
+    const previewUrls: Record<number, string> = {
+      3000: "https://3000-abc123.proxy.daytona.works",
+      5173: "https://5173-abc123.proxy.daytona.works",
+    };
+
+    it("auto-corrects localhost URL to Daytona URL", () => {
+      expect(
+        processor.resolvePreviewUrl("http://localhost:3000", previewUrls)
+      ).toBe("https://3000-abc123.proxy.daytona.works");
+    });
+
+    it("auto-corrects 127.0.0.1 URL to Daytona URL", () => {
+      expect(
+        processor.resolvePreviewUrl("http://127.0.0.1:5173", previewUrls)
+      ).toBe("https://5173-abc123.proxy.daytona.works");
+    });
+
+    it("passes through non-localhost URLs unchanged", () => {
+      const daytona = "https://3000-abc123.proxy.daytona.works";
+      expect(processor.resolvePreviewUrl(daytona, previewUrls)).toBe(daytona);
+    });
+
+    it("passes through localhost URL when port has no Daytona mapping", () => {
+      expect(
+        processor.resolvePreviewUrl("http://localhost:9999", previewUrls)
+      ).toBe("http://localhost:9999");
+    });
+  });
 });
 
 // --- Phase-gate pipeline tests (real I/O, mock only external boundaries) ---
@@ -373,6 +403,44 @@ WORK_RESULT:
     expect((await readFrontmatter()).status).toBe("Blocked");
   });
 
+  it("injects merge instructions for code-producing terminal tasks", async () => {
+    const validateSuccessOutput = `WORK_RESULT:
+  success: true
+  stage_completed: validate
+  merge_status: pr_created
+  pr_url: https://github.com/test/repo/pull/1
+  next_status: "Awaiting Merge"
+  summary: All checks pass. PR created.
+`;
+
+    // Write a prompt template for validate that includes the placeholder
+    await writeFile(
+      join((processor as any).promptLoader.promptsDir, "agent2-worker-validate.md"),
+      "Validate.\n{{MERGE_INSTRUCTIONS}}"
+    );
+
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Add auth",
+      description: "Implement OAuth2",
+      repo: "https://github.com/test/repo",
+      status: "Needs Validate",
+    });
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    const spy = vi
+      .spyOn(processor, "runClaudeInSandbox")
+      .mockResolvedValue(validateSuccessOutput);
+
+    await processor.dispatchStage(task, "agent2-worker-validate.md", tasks);
+
+    // The prompt sent to Claude should contain merge-pr.md content
+    const prompt = spy.mock.calls[0][1];
+    expect(prompt).toContain("Create a PR.");
+  });
+
   it("prints LIVE PREVIEW READY banner when preview_url is in result", async () => {
     const previewOutput = `WORK_RESULT:
   success: true
@@ -392,7 +460,7 @@ WORK_RESULT:
 
     await writeFile(
       join((processor as any).promptLoader.promptsDir, "agent2-worker-validate.md"),
-      "Validate.\n{{MERGE_INSTRUCTIONS}}\n{{PREVIEW_URLS}}"
+      "Validate.\n{{MERGE_INSTRUCTIONS}}"
     );
 
     const tasks = await processor.loadAllTasks();
@@ -429,7 +497,7 @@ WORK_RESULT:
 
     await writeFile(
       join((processor as any).promptLoader.promptsDir, "agent2-worker-validate.md"),
-      "Validate.\n{{MERGE_INSTRUCTIONS}}\n{{PREVIEW_URLS}}"
+      "Validate.\n{{MERGE_INSTRUCTIONS}}"
     );
 
     const tasks = await processor.loadAllTasks();
@@ -455,6 +523,9 @@ WORK_RESULT:
     const tasks = await processor.loadAllTasks();
     const task = tasks[0];
 
+    vi.spyOn(processor, "runClaudeInSandbox").mockResolvedValue(researchSuccessOutput);
+
+    // Stub spec stage to block so loop exits
     let callIdx = 0;
     vi.spyOn(processor, "runClaudeInSandbox").mockImplementation(
       async () => [researchSuccessOutput, specBlockedOutput][callIdx++] ?? ""
@@ -464,6 +535,83 @@ WORK_RESULT:
 
     const mockSandbox = await (processor as any).daytona.create.mock.results[0].value;
     expect(mockSandbox.delete).toHaveBeenCalled();
+  });
+
+  it("logs warning when merge fallback produces no WORK_RESULT", async () => {
+    const validateSuccessNoMerge = `WORK_RESULT:
+  success: true
+  stage_completed: validate
+  branch_name: dawn/AGI-1
+  commit_hash: def5678
+  next_status: "Done"
+  summary: All checks pass.
+`;
+
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Add auth",
+      description: "Implement OAuth2",
+      repo: "https://github.com/test/repo",
+      status: "Needs Validate",
+    });
+
+    await writeFile(
+      join((processor as any).promptLoader.promptsDir, "agent2-worker-validate.md"),
+      "Validate.\n{{MERGE_INSTRUCTIONS}}"
+    );
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    // First call returns success with no merge_status (triggers merge fallback)
+    // Second call (merge fallback) returns garbage with no WORK_RESULT
+    let callIdx = 0;
+    vi.spyOn(processor, "runClaudeInSandbox").mockImplementation(
+      async () => [validateSuccessNoMerge, "Some garbage output with no structured result."][callIdx++] ?? ""
+    );
+
+    const warnSpy = vi.spyOn(console, "warn");
+
+    await processor.dispatchStage(task, "agent2-worker-validate.md", tasks);
+
+    const mergeWarning = warnSpy.mock.calls.find(
+      (call) => typeof call[0] === "string" && call[0].includes("Merge invocation did not produce a WORK_RESULT")
+    );
+    expect(mergeWarning).toBeDefined();
+  });
+
+  it("auto-corrects localhost preview URL to Daytona URL in results", async () => {
+    const localhostPreviewOutput = `WORK_RESULT:
+  success: true
+  stage_completed: validate
+  next_status: "Done"
+  preview_url: http://localhost:3000
+  summary: App running with preview.
+`;
+
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Build UI",
+      description: "Create landing page",
+      repo: "https://github.com/test/repo",
+      status: "Needs Validate",
+    });
+
+    await writeFile(
+      join((processor as any).promptLoader.promptsDir, "agent2-worker-validate.md"),
+      "Validate.\n{{MERGE_INSTRUCTIONS}}"
+    );
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    vi.spyOn(processor, "runClaudeInSandbox").mockResolvedValue(localhostPreviewOutput);
+
+    await processor.dispatchStage(task, "agent2-worker-validate.md", tasks);
+
+    const data = await readFrontmatter();
+    // Should be auto-corrected from localhost:3000 to the Daytona URL
+    expect(data.preview_url).toBe("https://3000-mock.proxy.daytona.works");
   });
 
   it("marks Blocked when MAX_STAGES is exhausted", async () => {

@@ -56,6 +56,24 @@ You have access to all Claude Code tools EXCEPT Linear MCP:
 
 You do NOT have access to Linear. All issue context is provided above.
 
+## Live Preview (REQUIRED for Web/UI Tasks)
+
+If this project is a web application with a dev server (e.g., `npm run dev`, `next dev`, `vite`), you MUST:
+
+1. Start the dev server before emitting WORK_RESULT:
+   ```bash
+   nohup npm run dev -- --port 3000 &
+   sleep 5
+   ```
+
+2. Use the **Daytona preview URL** (not localhost!) for port 3000 from the list below as `preview_url` in your WORK_RESULT.
+
+Available Daytona preview URLs (publicly accessible, no auth needed):
+
+{{PREVIEW_URLS}}
+
+**IMPORTANT**: Report the Daytona URL from above (e.g., `https://3000-xxx.proxy.daytona.works`), NOT `http://localhost:3000`. The Daytona URL is the publicly accessible proxy — localhost is only reachable inside the sandbox.
+
 ## Implementation Process
 
 ### Step 1: Read the Plan Document
@@ -108,6 +126,8 @@ git push origin dawn/{identifier}
 ### Step 6: Update Plan Document
 
 Mark the plan status as "Implementation Complete" and add notes about any deviations from the plan.
+
+{{MERGE_INSTRUCTIONS}}
 
 ## Output Format
 

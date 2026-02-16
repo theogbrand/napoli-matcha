@@ -64,6 +64,19 @@ export async function configureGit(
   console.log(`[${label}] Git configured`);
 }
 
+export async function generatePreviewUrls(
+  sandbox: Sandbox,
+  ports: number[] = [3000, 5173, 8080],
+  expiresInSeconds: number = 7200
+): Promise<Record<number, string>> {
+  const urls: Record<number, string> = {};
+  for (const port of ports) {
+    const signed = await sandbox.getSignedPreviewUrl(port, expiresInSeconds);
+    urls[port] = signed.url;
+  }
+  return urls;
+}
+
 export async function setupBranch(
   sandbox: Sandbox,
   repoDir: string,

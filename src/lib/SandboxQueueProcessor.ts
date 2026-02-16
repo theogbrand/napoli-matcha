@@ -13,8 +13,6 @@ import { PromptLoader } from "./PromptLoader.js";
 import { parseWorkResult, WorkResult } from "./WorkResultParser.js";
 import {
   setupSandboxEnvironment,
-  installClaudeCLI,
-  installGitHubCLI,
   configureGit,
   setupBranch,
   generatePreviewUrls,
@@ -190,7 +188,18 @@ export class SandboxQueueProcessor {
         const actionableStatus = task.status;
         await this.updateTaskStatus(task, inProgressStatus(task.status));
 
-        const prompt = await this.buildStagePrompt(task, currentPromptFile, allTasks, previewUrls);
+        const prompt = await this.buildStagePrompt(task, currentPromptFile, allTasks, previewUrls, actionableStatus);
+        await appendFile(logFile, [
+          "╔══════════════════════════════════════════════════════════╗",
+          "║                    PROMPT SENT TO CLAUDE                ║",
+          "╚══════════════════════════════════════════════════════════╝",
+          "",
+          prompt,
+          "",
+          "═".repeat(60),
+          "",
+        ].join("\n"));
+
         const output = await this.runClaudeInSandbox(
           sandbox,
           prompt,
@@ -206,13 +215,17 @@ export class SandboxQueueProcessor {
           break;
         }
 
+        if (result.previewUrl) {
+          result.previewUrl = this.resolvePreviewUrl(result.previewUrl, previewUrls);
+        }
+
         if (
           result.success &&
           codeProducingStages.has(actionableStatus) &&
           this.isTerminal(task, allTasks) &&
           !result.mergeStatus
         ) {
-          const mergePrompt = await this.buildMergePrompt(task, branch);
+          const mergePrompt = await this.buildMergePrompt(task, branch, result.previewUrl);
           const mergeOutput = await this.runClaudeInSandbox(
             sandbox,
             mergePrompt,
@@ -225,6 +238,8 @@ export class SandboxQueueProcessor {
             result.mergeStatus = mergeResult.mergeStatus;
             result.prUrl = mergeResult.prUrl;
             if (mergeResult.nextStatus) result.nextStatus = mergeResult.nextStatus;
+          } else {
+            console.warn(`[Dawn:${label}] Merge invocation did not produce a WORK_RESULT — PR may not have been created`);
           }
         }
 
@@ -264,10 +279,12 @@ export class SandboxQueueProcessor {
     task: TaskRequest,
     promptFile: string,
     allTasks: TaskRequest[],
-    previewUrls: Record<number, string> = {}
+    previewUrls: Record<number, string> = {},
+    actionableStatus?: TaskStatus
   ): Promise<string> {
+    const statusForCheck = actionableStatus ?? task.status;
     const mergeFragment =
-      codeProducingStages.has(task.status) && this.isTerminal(task, allTasks)
+      codeProducingStages.has(statusForCheck) && this.isTerminal(task, allTasks)
         ? await this.promptLoader.load(`fragments/merge-${this.orchConfig.mergeMode}.md`)
         : "";
 
@@ -275,9 +292,9 @@ export class SandboxQueueProcessor {
 
     const vars: Record<string, string> = {
       MERGE_INSTRUCTIONS: mergeFragment,
-      STAGE: task.status.split(" ")[1]?.toLowerCase() ?? "unknown",
+      STAGE: statusForCheck.split(" ")[1]?.toLowerCase() ?? "unknown",
       WORKFLOW: "staged",
-      ARTIFACT_DIR: task.status.includes("Oneshot") ? "oneshot" : "validation",
+      ARTIFACT_DIR: statusForCheck.includes("Oneshot") ? "oneshot" : "validation",
       PROVIDER_LINK: `[Claude](https://claude.ai) (${this.orchConfig.claudeModel})`,
       PREVIEW_URLS: Object.entries(previewUrls)
         .map(([port, url]) => `- Port ${port}: ${url}`)
@@ -319,7 +336,7 @@ export class SandboxQueueProcessor {
     return context + filled;
   }
 
-  async buildMergePrompt(task: TaskRequest, branch: string): Promise<string> {
+  async buildMergePrompt(task: TaskRequest, branch: string, previewUrl?: string): Promise<string> {
     const mergeTemplate = await this.promptLoader.load(
       `fragments/merge-${this.orchConfig.mergeMode}.md`
     );
@@ -328,6 +345,7 @@ export class SandboxQueueProcessor {
       WORKFLOW: "staged",
       ARTIFACT_DIR: "validation",
       PROVIDER_LINK: `[Claude](https://claude.ai) (${this.orchConfig.claudeModel})`,
+      PREVIEW_URL: previewUrl ?? "N/A - no web server",
     });
   }
 
@@ -342,6 +360,7 @@ export class SandboxQueueProcessor {
     const claudeCmd = `IS_SANDBOX=1 claude -p '${escaped}' --dangerously-skip-permissions --output-format=stream-json --model ${this.orchConfig.claudeModel} --verbose`;
 
     console.log(`[Dawn:${label}] Starting Claude via PTY...`);
+    console.log(`[Dawn:${label}] PTY cwd=${repoDir}`);
 
     const decoder = new TextDecoder();
     let buffer = "";
@@ -451,6 +470,21 @@ export class SandboxQueueProcessor {
 
   branchName(task: TaskRequest): string {
     return task.group ? `dawn/${task.group}` : `dawn/${task.id}`;
+  }
+
+  resolvePreviewUrl(
+    url: string,
+    previewUrls: Record<number, string>
+  ): string {
+    const localhostMatch = url.match(/^https?:\/\/(?:localhost|127\.0\.0\.1):(\d+)/);
+    if (localhostMatch) {
+      const port = parseInt(localhostMatch[1], 10);
+      if (previewUrls[port]) {
+        console.log(`[Dawn] Auto-corrected preview URL: localhost:${port} → Daytona URL`);
+        return previewUrls[port];
+      }
+    }
+    return url;
   }
 
   // --- Task loading and persistence ---
