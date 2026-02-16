@@ -1,5 +1,5 @@
 {
-  "name": "Dawn CLI Agent",
+  "name": "dawn-cli-agent",
   "type": "module",
   "scripts": {
     "test": "vitest run --exclude tests/pr_creation.test.ts --exclude tests/daytona_sandbox.test.ts --exclude tests/live_preview.test.ts",
