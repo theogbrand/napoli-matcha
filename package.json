@@ -1,6 +1,6 @@
 {
   "name": "dawn-cli-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": [
     "Turn feature requests into merged pull requests with velocity and confidence.",
     "Horizon’s Dawn Agents work in parallel to turn feature requests into PRs with velocity and confidence.",
