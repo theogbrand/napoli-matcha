@@ -10,7 +10,7 @@ describe("Daytona sandbox", () => {
     const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
     const sandbox = await daytona.create({ 
       language: "typescript", 
-      ephemeral: true,
+      // ephemeral: true,
       resources: { cpu: 2, memory: 4, disk: 8 },
       image: "node:24-alpine"
     });
@@ -19,15 +19,23 @@ describe("Daytona sandbox", () => {
 
     try {
       const claudeCommand =
-        "claude --dangerously-skip-permissions -p 'write a dad joke about penguins' --output-format stream-json --verbose";
+        "IS_SANDBOX=1 claude --dangerously-skip-permissions -p 'write a dad joke about penguins' --output-format stream-json --verbose";
 
       await sandbox.process.executeCommand(
         "npm install -g @anthropic-ai/claude-code"
       );
 
+      // Store API key in a file so it doesn't leak in PTY echo
+      await sandbox.process.executeCommand(
+        `printf '%s' '${process.env.ANTHROPIC_API_KEY}' > /tmp/.anthropic_key`
+      );
+
       const decoder = new TextDecoder();
       let buffer = "";
       const formatter = new StreamFormatter();
+
+      let resolveResult: () => void;
+      const resultPromise = new Promise<void>((resolve) => { resolveResult = resolve; });
 
       const ptyHandle = await sandbox.process.createPty({
         id: "claude",
@@ -51,6 +59,7 @@ describe("Daytona sandbox", () => {
               events.push(event);
               const formatted = formatter.format(event);
               if (formatted) console.log(`[test] ${formatted}`);
+              if (event.type === "result") resolveResult();
             } catch {
               console.log(`[raw] ${stripped}`);
             }
@@ -61,11 +70,13 @@ describe("Daytona sandbox", () => {
       await ptyHandle.waitForConnection();
 
       ptyHandle.sendInput(
-        `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY} ${claudeCommand}\n`
+        `ANTHROPIC_API_KEY=$(cat /tmp/.anthropic_key) ${claudeCommand}\n`
       );
-      ptyHandle.sendInput("exit\n");
 
-      await ptyHandle.wait();
+      // Wait for Claude to emit the result event instead of pty.wait()
+      // (the PTY WebSocket doesn't close reliably after shell exit)
+      await resultPromise;
+      await ptyHandle.disconnect();
 
       // Flush remaining buffer
       if (buffer.trim()) {
