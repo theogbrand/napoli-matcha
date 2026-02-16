@@ -14,14 +14,18 @@ vi.mock("@daytonaio/sdk", () => ({
   Daytona: class {
     create = vi.fn();
   },
+  Image: {
+    base: vi.fn().mockReturnValue({
+      runCommands: vi.fn().mockReturnThis(),
+    }),
+  },
 }));
 
 vi.mock("../src/lib/SandboxSetup.js", () => ({
   setupSandboxEnvironment: vi.fn().mockResolvedValue("/workspace/repo"),
-  installClaudeCLI: vi.fn().mockResolvedValue(undefined),
-  installGitHubCLI: vi.fn().mockResolvedValue(undefined),
   configureGit: vi.fn().mockResolvedValue(undefined),
   setupBranch: vi.fn().mockResolvedValue(undefined),
+  generatePreviewUrls: vi.fn().mockResolvedValue({ 3000: "https://3000-mock.proxy.daytona.works", 5173: "https://5173-mock.proxy.daytona.works", 8080: "https://8080-mock.proxy.daytona.works" }),
 }));
 
 function makeTask(overrides: Partial<TaskRequest> = {}): TaskRequest {
@@ -193,7 +197,12 @@ WORK_RESULT:
     (processor as any).logsDir = logsDir;
     (processor as any).promptLoader = new PromptLoader(promptsDir);
     (processor as any).daytona = {
-      create: vi.fn().mockResolvedValue({ delete: vi.fn() }),
+      create: vi.fn().mockResolvedValue({
+        delete: vi.fn(),
+        process: {
+          executeCommand: vi.fn().mockResolvedValue({ exitCode: 0, result: "/usr/local/bin/claude\n1.0.0\n/usr/local/bin/gh\ngh version 2.86.0" }),
+        },
+      }),
     };
   });
 

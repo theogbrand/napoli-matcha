@@ -2,7 +2,8 @@
   "name": "Dawn CLI Agent",
   "type": "module",
   "scripts": {
-    "test": "vitest run --exclude tests/pr_creation.test.ts --exclude tests/daytona_sandbox.test.ts",
+    "test": "vitest run --exclude tests/pr_creation.test.ts --exclude tests/daytona_sandbox.test.ts --exclude tests/live_preview.test.ts",
+    "test:preview": "vitest run tests/live_preview.test.ts",
     "test:integration": "vitest run tests/pr_creation.test.ts tests/daytona_sandbox.test.ts",
     "test:oneshot": "vitest run tests/simple_oneshot_pr_creation.test.ts",
     "test:pr": "vitest run tests/pr_creation.test.ts",

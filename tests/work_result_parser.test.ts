@@ -104,6 +104,24 @@ WORK_RESULT:
       expect(result.success).toBe(true);
     });
 
+    it("parses preview_url into result.previewUrl", () => {
+      const output = `WORK_RESULT:
+  success: true
+  stage_completed: implement
+  branch_name: dawn/AGI-7
+  preview_url: https://3000-eyJhbGci.proxy.daytona.works
+  commit_hash: abc1234
+  next_status: "∞ Needs Validate"
+  summary: Implemented with live preview running.
+`;
+      const result = parseWorkResult(output)!;
+      expect(result).not.toBeNull();
+      expect(result.previewUrl).toBe(
+        "https://3000-eyJhbGci.proxy.daytona.works"
+      );
+      expect(result.success).toBe(true);
+    });
+
     it("uses the LAST WORK_RESULT block if multiple exist", () => {
       const output = `WORK_RESULT:
   success: false
