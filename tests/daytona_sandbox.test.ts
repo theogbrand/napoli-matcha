@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Daytona } from "@daytonaio/sdk";
+import { Daytona, Image } from "@daytonaio/sdk";
 import dotenv from "dotenv";
 import { StreamFormatter, StreamEvent } from "../src/lib/StreamFormatter.js";
 
@@ -8,7 +8,10 @@ dotenv.config();
 describe("Daytona sandbox", () => {
   it("should create a sandbox, run Claude Code, and produce stream-json events", async () => {
     const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
-    const sandbox = await daytona.create({ language: "typescript" });
+    const sandbox = await daytona.create({ 
+      language: "typescript", 
+      ephemeral: true 
+    });
 
     const events: StreamEvent[] = [];
 
