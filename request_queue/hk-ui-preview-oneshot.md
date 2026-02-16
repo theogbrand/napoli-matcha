@@ -5,7 +5,7 @@ description: >-
   want to test if the view works.
 repo: 'https://github.com/theogbrand/ralph-healthkit-view'
 number_of_sandboxes: 2
-status: Research In Progress
+status: Done
 id: TEST-AGI-10
 ---
 
