@@ -1,10 +1,14 @@
 {
+  "name": "dawn-cli-agent",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --exclude tests/pr_creation.test.ts --exclude tests/daytona_sandbox.test.ts --exclude tests/live_preview.test.ts",
+    "test:preview": "vitest run tests/live_preview.test.ts",
+    "test:integration": "vitest run tests/pr_creation.test.ts tests/daytona_sandbox.test.ts",
+    "test:oneshot": "vitest run tests/simple_oneshot_pr_creation.test.ts",
     "test:pr": "vitest run tests/pr_creation.test.ts",
     "test:sandbox": "vitest run tests/daytona_sandbox.test.ts",
-    "start": "npx tsx src/index.ts"
+    "start": "tsx src/index.ts"
   },
   "dependencies": {
     "@daytonaio/sdk": "^0.140.0",
@@ -13,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.18"
   }

@@ -8,19 +8,19 @@ Agent 1 has specified which stage to execute. **Read the detailed instructions f
 
 | Stage | Instructions File |
 |-------|-------------------|
-| oneshot | `.horizon/prompts/agent2-worker-oneshot.md` |
-| research | `.horizon/prompts/agent2-worker-research.md` |
-| specification | `.horizon/prompts/agent2-worker-specification.md` |
-| plan | `.horizon/prompts/agent2-worker-plan.md` |
-| implement | `.horizon/prompts/agent2-worker-implement.md` |
-| validate | `.horizon/prompts/agent2-worker-validate.md` |
+| oneshot | `.dawn/prompts/agent2-worker-oneshot.md` |
+| research | `.dawn/prompts/agent2-worker-research.md` |
+| specification | `.dawn/prompts/agent2-worker-specification.md` |
+| plan | `.dawn/prompts/agent2-worker-plan.md` |
+| implement | `.dawn/prompts/agent2-worker-implement.md` |
+| validate | `.dawn/prompts/agent2-worker-validate.md` |
 
 **Read the file for your stage now, then follow those instructions exactly.**
 
 ## Quick Reference (details in stage-specific file)
 
 ### Branch Workflow
-- You run in an isolated git worktree already on branch `horizon/{issue-identifier}`
+- You run in an isolated git worktree already on branch `dawn/{issue-identifier}`
 - Never push directly to main; do NOT run `git checkout main`
 - All merges happen via PR creation
 

@@ -1,37 +1,107 @@
 import { describe, it, expect } from "vitest";
-import { Daytona } from "@daytonaio/sdk";
+import { Daytona, Image } from "@daytonaio/sdk";
 import dotenv from "dotenv";
+import { StreamFormatter, StreamEvent } from "../src/lib/StreamFormatter.js";
 
 dotenv.config();
 
 describe("Daytona sandbox", () => {
-  it("should create a sandbox, run Claude Code, and clean up", async () => {
+  it("should create a sandbox, run Claude Code, and produce stream-json events", async () => {
     const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
-    const sandbox = await daytona.create({ language: "typescript" });
+    const sandbox = await daytona.create({ 
+      language: "typescript", 
+      // ephemeral: true,
+      resources: { cpu: 2, memory: 4, disk: 8 },
+      image: "node:24-alpine"
+    });
+
+    const events: StreamEvent[] = [];
 
     try {
       const claudeCommand =
-        "claude --dangerously-skip-permissions -p 'write a dad joke about penguins' --output-format stream-json --verbose";
+        "IS_SANDBOX=1 claude --dangerously-skip-permissions -p 'write a dad joke about penguins' --output-format stream-json --verbose";
 
       await sandbox.process.executeCommand(
         "npm install -g @anthropic-ai/claude-code"
       );
 
+      // Store API key in a file so it doesn't leak in PTY echo
+      await sandbox.process.executeCommand(
+        `printf '%s' '${process.env.ANTHROPIC_API_KEY}' > /tmp/.anthropic_key`
+      );
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const formatter = new StreamFormatter();
+
+      let resolveResult: () => void;
+      const resultPromise = new Promise<void>((resolve) => { resolveResult = resolve; });
+
       const ptyHandle = await sandbox.process.createPty({
         id: "claude",
-        onData: (data) => {
-          process.stdout.write(data);
+        onData: (data: Uint8Array) => {
+          const text = decoder.decode(data, { stream: true });
+          buffer += text;
+          const lines = buffer.split("\n");
+          buffer = lines.pop()!;
+
+          for (const line of lines) {
+            const stripped = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").trim();
+            if (!stripped) continue;
+
+            if (!stripped.startsWith("{")) {
+              console.log(`[raw] ${stripped}`);
+              continue;
+            }
+
+            try {
+              const event: StreamEvent = JSON.parse(stripped);
+              events.push(event);
+              const formatted = formatter.format(event);
+              if (formatted) console.log(`[test] ${formatted}`);
+              if (event.type === "result") resolveResult();
+            } catch {
+              console.log(`[raw] ${stripped}`);
+            }
+          }
         },
       });
 
       await ptyHandle.waitForConnection();
 
       ptyHandle.sendInput(
-        `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY} ${claudeCommand}\n`
+        `ANTHROPIC_API_KEY=$(cat /tmp/.anthropic_key) ${claudeCommand}\n`
       );
-      ptyHandle.sendInput("exit\n");
 
-      await ptyHandle.wait();
+      // Wait for Claude to emit the result event instead of pty.wait()
+      // (the PTY WebSocket doesn't close reliably after shell exit)
+      await resultPromise;
+      await ptyHandle.disconnect();
+
+      // Flush remaining buffer
+      if (buffer.trim()) {
+        const stripped = buffer.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").trim();
+        if (stripped.startsWith("{")) {
+          try {
+            const event: StreamEvent = JSON.parse(stripped);
+            events.push(event);
+            const formatted = formatter.format(event);
+            if (formatted) console.log(`[test] ${formatted}`);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      // Phase gate 1: at least one stream event was parsed
+      expect(events.length).toBeGreaterThan(0);
+
+      // Phase gate 2: at least one assistant message was received
+      expect(events.some((e) => e.type === "assistant")).toBe(true);
+
+      // Phase gate 3: session ended with a result event
+      const resultEvent = events.find((e) => e.type === "result");
+      expect(resultEvent).toBeDefined();
     } finally {
       await sandbox.delete();
     }

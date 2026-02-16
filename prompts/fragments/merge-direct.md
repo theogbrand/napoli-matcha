@@ -18,7 +18,7 @@ git checkout main
 git pull origin main
 
 # Attempt merge with no-ff to preserve branch history
-git merge horizon/{identifier} --no-ff -m "Merge horizon/{identifier}: {issue_title}"
+git merge dawn/{identifier} --no-ff -m "Merge dawn/{identifier}: {issue_title}"
 ```
 
 **Handle the merge result:**
@@ -26,8 +26,8 @@ git merge horizon/{identifier} --no-ff -m "Merge horizon/{identifier}: {issue_ti
 1. **Clean merge (no conflicts)**: Push to main, delete feature branch
    ```bash
    git push origin main
-   git branch -d horizon/{identifier}
-   git push origin --delete horizon/{identifier}
+   git branch -d dawn/{identifier}
+   git push origin --delete dawn/{identifier}
    ```
    Set `merge_status: success` in WORK_RESULT.
 
@@ -39,10 +39,10 @@ git merge horizon/{identifier} --no-ff -m "Merge horizon/{identifier}: {issue_ti
    After resolving:
    ```bash
    git add .
-   git commit -m "Merge horizon/{identifier}: {issue_title}"
+   git commit -m "Merge dawn/{identifier}: {issue_title}"
    git push origin main
-   git branch -d horizon/{identifier}
-   git push origin --delete horizon/{identifier}
+   git branch -d dawn/{identifier}
+   git push origin --delete dawn/{identifier}
    ```
    Set `merge_status: success` in WORK_RESULT.
 
@@ -53,7 +53,7 @@ git merge horizon/{identifier} --no-ff -m "Merge horizon/{identifier}: {issue_ti
 
    ```bash
    git merge --abort
-   git checkout horizon/{identifier}
+   git checkout dawn/{identifier}
    ```
    Set `merge_status: blocked` and `merge_conflict_files: [list of files]` in WORK_RESULT.
 
@@ -66,9 +66,9 @@ WORK_RESULT:
   success: true
   stage_completed: {{STAGE}}
   workflow: {{WORKFLOW}}
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: horizon-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {merge commit hash on main}
   merge_status: success
   next_status: "∞ Done"
@@ -85,9 +85,9 @@ WORK_RESULT:
   success: true
   stage_completed: {{STAGE}}
   workflow: {{WORKFLOW}}
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: horizon-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash on feature branch}
   merge_status: blocked
   merge_conflict_files: [file1.ts, file2.ts]
@@ -105,7 +105,7 @@ WORK_RESULT:
   success: false
   stage_completed: {{STAGE}}
   workflow: {{WORKFLOW}}
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
   error: |
     {What went wrong and why it couldn't be fixed}

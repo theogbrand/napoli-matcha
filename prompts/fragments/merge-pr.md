@@ -10,12 +10,12 @@ Include this as `repo_url` in WORK_RESULT.
 
 ### Step 8: Create PR Description Document
 
-Before creating the PR, write a comprehensive PR description document to `horizon-docs/prs/{identifier}.md`:
+Before creating the PR, write a comprehensive PR description document to `dawn-docs/active/prs/{identifier}.md`:
 
 ```markdown
 # PR: {issue_identifier} - {issue_title}
 
-**Branch**: `horizon/{identifier}`
+**Branch**: `dawn/{identifier}`
 **Linear Issue**: {issue_identifier}
 **Date**: {YYYY-MM-DD}
 
@@ -59,19 +59,23 @@ Before creating the PR, write a comprehensive PR description document to `horizo
 
 {Any steps needed for users upgrading, or "None" if not applicable}
 
+## Live Preview
+
+{If a dev server is running, include the preview URL here. Otherwise write "N/A - no web server"}
+
 ## Screenshots
 
 {If UI changes, include before/after screenshots, or "N/A" for non-UI changes}
 
 ---
-🤖 Created by [Horizon](https://github.com/ob1-sg/horizon) with {{PROVIDER_LINK}}
+🤖 Created by [Dawn](https://github.com/ob1-sg/dawn) with {{PROVIDER_LINK}}
 ```
 
 Commit and push this document:
 ```bash
-git add horizon-docs/prs/
+git add dawn-docs/active/prs/
 git commit -m "docs({identifier}): add PR description"
-git push origin horizon/{identifier}
+git push origin dawn/{identifier}
 ```
 
 ### Step 9: Create Pull Request
@@ -82,9 +86,9 @@ Create the pull request using the description document:
 # Create the pull request with the description file
 gh pr create \
   --title "{issue_identifier}: {issue_title}" \
-  --body-file horizon-docs/prs/{identifier}.md \
+  --body-file dawn-docs/active/prs/{identifier}.md \
   --base main \
-  --head horizon/{identifier}
+  --head dawn/{identifier}
 ```
 
 Replace the placeholders:
@@ -109,10 +113,10 @@ WORK_RESULT:
   success: true
   stage_completed: {{STAGE}}
   workflow: {{WORKFLOW}}
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: horizon-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
-  pr_description_path: horizon-docs/prs/{identifier}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  pr_description_path: dawn-docs/active/prs/{identifier}.md
   commit_hash: {short hash on feature branch}
   merge_status: pr_created
   pr_url: {GitHub PR URL}
@@ -131,9 +135,9 @@ WORK_RESULT:
   success: true
   stage_completed: {{STAGE}}
   workflow: {{WORKFLOW}}
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
-  artifact_path: horizon-docs/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
+  artifact_path: dawn-docs/active/{{ARTIFACT_DIR}}/YYYY-MM-DD-{identifier}-{slug}.md
   commit_hash: {short hash on feature branch}
   merge_status: pr_failed
   next_status: "∞ Blocked"
@@ -149,7 +153,7 @@ WORK_RESULT:
   success: false
   stage_completed: {{STAGE}}
   workflow: {{WORKFLOW}}
-  branch_name: horizon/{identifier}
+  branch_name: dawn/{identifier}
   repo_url: {git remote URL, e.g., https://github.com/owner/repo.git}
   error: |
     {What went wrong and why it couldn't be fixed}
