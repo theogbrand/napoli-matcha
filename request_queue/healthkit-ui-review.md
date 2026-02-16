@@ -5,7 +5,7 @@ description: >-
   dashboard app. Create a Live Preview of the app running, so I can manually monitor the changes you make to the UI.
 repo: 'https://github.com/theogbrand/ralph-healthkit-view'
 number_of_sandboxes: 2
-status: Needs Research
+status: Blocked
 id: TEST-AGI-4
 ---
 
