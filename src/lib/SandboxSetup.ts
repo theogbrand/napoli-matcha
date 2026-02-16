@@ -9,7 +9,7 @@ export async function setupSandboxEnvironment(
 ): Promise<string> {
   const repoDir = "/root/repo";
   await sandbox.git.clone(repo, repoDir);
-  console.log(`[${label}] Repo cloned`);
+  console.log(`[${label}] Repo cloned: ${repo}`);
 
   await uploadPromptFiles(sandbox, repoDir, label);
 
