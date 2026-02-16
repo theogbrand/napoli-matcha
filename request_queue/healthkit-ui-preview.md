@@ -1,8 +1,7 @@
 ---
-title: Ralph HealthKit View
+title: Ralph HealthKit View (Claude Monet Style)
 description: >-
-  Add a Apple-style UIUX theme with 3 colors to my dashboard app. It's too plain now,
-  give it a clean, Apple-style classic design.
+  Add a simple Claude-Monet type styling to my dashboard app.
 repo: 'https://github.com/theogbrand/ralph-healthkit-view'
 number_of_sandboxes: 2
 status: Needs Research
