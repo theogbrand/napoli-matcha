@@ -55,6 +55,21 @@ You have access to all Claude Code tools EXCEPT Linear MCP:
 
 You do NOT have access to Linear. All issue context is provided above.
 
+## Live Preview (REQUIRED for Web/UI Tasks)
+
+If this project is a web application with a dev server (e.g., `npm run dev`, `next dev`, `vite`), you MUST start it before emitting WORK_RESULT:
+
+```bash
+nohup npm run dev -- --port 3000 &
+sleep 5
+```
+
+Then include the preview URL for port 3000 in your WORK_RESULT as `preview_url`.
+
+Available preview URLs (publicly accessible, no auth needed):
+
+{{PREVIEW_URLS}}
+
 ## Oneshot Process
 
 Oneshot tasks are typically:

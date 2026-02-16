@@ -198,6 +198,7 @@ WORK_RESULT:
     (processor as any).promptLoader = new PromptLoader(promptsDir);
     (processor as any).daytona = {
       create: vi.fn().mockResolvedValue({
+        id: "test-sandbox-123",
         delete: vi.fn(),
         process: {
           executeCommand: vi.fn().mockResolvedValue({ exitCode: 0, result: "/usr/local/bin/claude\n1.0.0\n/usr/local/bin/gh\ngh version 2.86.0" }),
@@ -370,6 +371,99 @@ WORK_RESULT:
 
     expect(task.status).toBe(TaskStatus.Blocked);
     expect((await readFrontmatter()).status).toBe("Blocked");
+  });
+
+  it("prints LIVE PREVIEW READY banner when preview_url is in result", async () => {
+    const previewOutput = `WORK_RESULT:
+  success: true
+  stage_completed: validate
+  next_status: "Done"
+  preview_url: https://3000-mock.proxy.daytona.works
+  summary: App running with preview.
+`;
+
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Build UI",
+      description: "Create landing page",
+      repo: "https://github.com/test/repo",
+      status: "Needs Validate",
+    });
+
+    await writeFile(
+      join((processor as any).promptLoader.promptsDir, "agent2-worker-validate.md"),
+      "Validate.\n{{MERGE_INSTRUCTIONS}}\n{{PREVIEW_URLS}}"
+    );
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    vi.spyOn(processor, "runClaudeInSandbox").mockResolvedValue(previewOutput);
+    const logSpy = vi.spyOn(console, "log");
+
+    await processor.dispatchStage(task, "agent2-worker-validate.md", tasks);
+
+    const bannerCall = logSpy.mock.calls.find(
+      (call) => typeof call[0] === "string" && call[0].includes("LIVE PREVIEW READY")
+    );
+    expect(bannerCall).toBeDefined();
+    expect(bannerCall![0]).toContain("https://3000-mock.proxy.daytona.works");
+  });
+
+  it("does NOT delete sandbox when preview_url exists", async () => {
+    const previewOutput = `WORK_RESULT:
+  success: true
+  stage_completed: validate
+  next_status: "Done"
+  preview_url: https://3000-mock.proxy.daytona.works
+  summary: App running with preview.
+`;
+
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Build UI",
+      description: "Create landing page",
+      repo: "https://github.com/test/repo",
+      status: "Needs Validate",
+    });
+
+    await writeFile(
+      join((processor as any).promptLoader.promptsDir, "agent2-worker-validate.md"),
+      "Validate.\n{{MERGE_INSTRUCTIONS}}\n{{PREVIEW_URLS}}"
+    );
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    vi.spyOn(processor, "runClaudeInSandbox").mockResolvedValue(previewOutput);
+
+    await processor.dispatchStage(task, "agent2-worker-validate.md", tasks);
+
+    const mockSandbox = await (processor as any).daytona.create.mock.results[0].value;
+    expect(mockSandbox.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes sandbox when no preview_url in result", async () => {
+    await writeTaskFile({
+      id: "AGI-1",
+      title: "Test",
+      description: "Test task",
+      repo: "https://github.com/test/repo",
+      status: "Needs Research",
+    });
+
+    const tasks = await processor.loadAllTasks();
+    const task = tasks[0];
+
+    let callIdx = 0;
+    vi.spyOn(processor, "runClaudeInSandbox").mockImplementation(
+      async () => [researchSuccessOutput, specBlockedOutput][callIdx++] ?? ""
+    );
+
+    await processor.dispatchStage(task, "agent2-worker-research.md", tasks);
+
+    const mockSandbox = await (processor as any).daytona.create.mock.results[0].value;
+    expect(mockSandbox.delete).toHaveBeenCalled();
   });
 
   it("marks Blocked when MAX_STAGES is exhausted", async () => {

@@ -148,6 +148,8 @@ export class SandboxQueueProcessor {
     });
     console.log(`[Dawn:${label}] Sandbox created`);
 
+    let hasPreviewUrl = false;
+
     try {
       const verify = await sandbox.process.executeCommand(
         "which claude && claude --version && which gh && gh --version"
@@ -163,6 +165,9 @@ export class SandboxQueueProcessor {
 
       const branch = this.branchName(task);
       await setupBranch(sandbox, repoDir, branch, label);
+
+      const previewUrls = await generatePreviewUrls(sandbox);
+      console.log(`[Dawn:${label}] Preview URLs generated for ports: ${Object.keys(previewUrls).join(", ")}`);
 
       let stageCount = 0;
       let currentPromptFile = promptFile;
@@ -185,7 +190,7 @@ export class SandboxQueueProcessor {
         const actionableStatus = task.status;
         await this.updateTaskStatus(task, inProgressStatus(task.status));
 
-        const prompt = await this.buildStagePrompt(task, currentPromptFile, allTasks);
+        const prompt = await this.buildStagePrompt(task, currentPromptFile, allTasks, previewUrls);
         const output = await this.runClaudeInSandbox(
           sandbox,
           prompt,
@@ -225,6 +230,11 @@ export class SandboxQueueProcessor {
 
         await this.writeResults(task, result);
 
+        if (result.previewUrl) {
+          hasPreviewUrl = true;
+          this.printPreviewBanner(result.previewUrl, (sandbox as any).id ?? "unknown");
+        }
+
         const footer = `\n=== Stage finished: ${new Date().toISOString()} ===\n`;
         await appendFile(logFile, footer);
 
@@ -241,15 +251,20 @@ export class SandboxQueueProcessor {
         await this.updateTaskStatus(task, TaskStatus.Blocked);
       }
     } finally {
-      await sandbox.delete();
-      console.log(`[Dawn:${label}] Sandbox deleted`);
+      if (hasPreviewUrl) {
+        console.log(`[Dawn:${label}] Sandbox kept alive (preview active) — delete from https://app.daytona.io/dashboard`);
+      } else {
+        await sandbox.delete();
+        console.log(`[Dawn:${label}] Sandbox deleted`);
+      }
     }
   }
 
   async buildStagePrompt(
     task: TaskRequest,
     promptFile: string,
-    allTasks: TaskRequest[]
+    allTasks: TaskRequest[],
+    previewUrls: Record<number, string> = {}
   ): Promise<string> {
     const mergeFragment =
       codeProducingStages.has(task.status) && this.isTerminal(task, allTasks)
@@ -264,6 +279,9 @@ export class SandboxQueueProcessor {
       WORKFLOW: "staged",
       ARTIFACT_DIR: task.status.includes("Oneshot") ? "oneshot" : "validation",
       PROVIDER_LINK: `[Claude](https://claude.ai) (${this.orchConfig.claudeModel})`,
+      PREVIEW_URLS: Object.entries(previewUrls)
+        .map(([port, url]) => `- Port ${port}: ${url}`)
+        .join("\n"),
     };
 
     const filled = this.promptLoader.fill(stageTemplate, vars);
@@ -392,6 +410,7 @@ export class SandboxQueueProcessor {
     if (result.branchName) data.branch_name = result.branchName;
     if (result.commitHash) data.commit_hash = result.commitHash;
     if (result.prUrl) data.pr_url = result.prUrl;
+    if (result.previewUrl) data.preview_url = result.previewUrl;
     if (result.summary) data.last_summary = result.summary;
     if (result.error) data.last_error = result.error;
     if (result.artifactPath && result.stageCompleted) {
@@ -514,6 +533,23 @@ export class SandboxQueueProcessor {
       matter.stringify("", { ...data, status })
     );
     task.status = status;
+  }
+
+  // --- Preview banner ---
+
+  private printPreviewBanner(previewUrl: string, sandboxId: string): void {
+    const urlDisplay = previewUrl.length > 50 ? previewUrl.slice(0, 50) + "..." : previewUrl;
+    const banner = [
+      "",
+      "╔══════════════════════════════════════════════════════╗",
+      "║  LIVE PREVIEW READY                                  ║",
+      `║  URL: ${urlDisplay}`,
+      `║  Sandbox ID: ${sandboxId}`,
+      "║  Delete from: https://app.daytona.io/dashboard       ║",
+      "╚══════════════════════════════════════════════════════╝",
+      "",
+    ].join("\n");
+    console.log(banner);
   }
 
   // --- Stream handling ---

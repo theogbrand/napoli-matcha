@@ -9,6 +9,7 @@ export interface WorkResult {
   artifactPath?: string;
   mergeStatus?: string;
   prUrl?: string;
+  previewUrl?: string;
   summary?: string;
   error?: string;
 }
@@ -68,6 +69,7 @@ export function parseWorkResult(output: string): WorkResult | null {
   if (kv.has("artifact_path")) result.artifactPath = kv.get("artifact_path");
   if (kv.has("merge_status")) result.mergeStatus = kv.get("merge_status");
   if (kv.has("pr_url")) result.prUrl = kv.get("pr_url");
+  if (kv.has("preview_url")) result.previewUrl = kv.get("preview_url");
   if (kv.has("summary")) result.summary = kv.get("summary");
   if (kv.has("error")) result.error = kv.get("error");
 
