@@ -68,9 +68,8 @@ export class SandboxQueueProcessor {
 
     this.orchConfig = config;
     this.daytona = new Daytona({ apiKey: config.daytonaApiKey });
-    const root = join(import.meta.dirname, "..", "..");
-    this.queueDir = join(root, "request_queue");
-    this.logsDir = join(root, "logs");
+    this.queueDir = join(process.cwd(), "request_queue");
+    this.logsDir = join(process.cwd(), "logs");
     this.promptLoader = new PromptLoader();
   }
 

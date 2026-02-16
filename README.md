@@ -163,3 +163,7 @@ For each dispatched task, a single Daytona sandbox handles all of its stages:
 ```
 
 Preview URLs let reviewers interact with running apps (e.g. a Vite dev server) before merging — the sandbox stays alive so the URL keeps working.
+
+## Known Issues
+
+- **Daytona sandboxes can get stuck in "spawning" state** — Occasionally, sandbox creation fails to complete and hangs indefinitely. Restarting Dawn to rerun the task usually resolves this.
